@@ -1,0 +1,8 @@
+/.matt/private/
+/.matt/reports/
+/.matt/runtime/node_modules/
+/.matt/install.lock
+/midscene_run/
+/e2e/midscene_run/
+/e2e/midscene-node-spec*.md
+/midscene-node-spec*.md

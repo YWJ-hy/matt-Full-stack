@@ -1,0 +1,11 @@
+{
+  "name": "matt-workspace-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@midscene/test": "1.18.2",
+    "@midscene/web": "1.18.2",
+    "playwright": "1.58.2"
+  }
+}
