@@ -91,11 +91,13 @@ node .matt/runtime/sessions.mjs spec --models .matt/private/另一工具.json
 
 ### 执行验收
 
-每个新需求在父会话中启动：「请用 `$matt-full-stack` 完成〈需求〉，按公共 spec 派发前后端，最后验收实际组合。」父会话按流程 skill 调用 `grill-with-docs`。派单取 `.agents/skills/matt-full-stack/references/dispatch.md` 的公共正文和对应角色段。每个子会话都收到完整的 `$mattpocock-skills:implement` 调用、TDD 边界、review 基线和 skill 的父层绝对路径。失败回派时保留原会话引用和运行版本对。
+每个新需求在父会话中启动：「请用 `$matt-full-stack` 完成〈需求〉，按公共 spec 派发前后端，最后验收实际组合。」父会话按流程 skill 调用 `grill-with-docs`。派单取 `.agents/skills/matt-full-stack/references/dispatch.md` 的公共正文和对应角色段。每个子会话都收到完整的 `$mattpocock-skills:implement` 调用、TDD 边界和 review 基线。优先使用宿主已安装的插件。缺少该入口时，随派单提供上游工具包 `vendor/mattpocock/<短名>/SKILL.md` 的可读绝对路径。失败回派时保留原会话引用和运行版本对。
 
 父会话执行 `.agents/skills/matt-full-stack/SKILL.md`。单文件运行 `node .matt/runtime/run.mjs test e2e/cases/<场景>.yaml`，全量运行 `node .matt/runtime/run.mjs test`。以退出码、原生 summary/HTML、具体 case 与预期对应关系为证据。`.matt/reports/<运行ID>/receipt.json` 记录本地 checkout SHA 和 dirty 状态；**不是**已部署版本证明。核对服务构建标识或启动记录、真实账号/后端与合成数据，记录在 `spec/<需求>.md`；任何缺项标为未验证/阻塞。工具返回零不自动签收。注意数据清理、测试幂等和不同角色隔离。
 
 ## 5. 升级与冲突
+
+从 1.2 或更早版本升级时，`remove-duplicate` 标出与旧清单和上游原文均匹配的 mattpocock 文件。应用后宿主使用已安装的插件。检测到本地改动的 skill 会整体保留，用户可在核对差异后自行整理同名入口。
 
 用可信的**新版上游** CLI，仍在原父目录执行：
 

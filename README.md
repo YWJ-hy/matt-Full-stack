@@ -20,4 +20,4 @@
 
 开发：Node 22.12+，`npm test` 验证安装与升级；`npm run test:browser` 在 `.work/` 新建含两个 Git 子仓的全栈夹具，安装锁定依赖并运行 Chromium（首次需要网络）。
 
-父目录自带流程所需的上游 skill 和引用文件，包括 `grill-with-docs`、`grilling`、`domain-modeling`、`implement`、`tdd`、`code-review`，以及按需使用的 `codebase-design` 和 `diagnosing-bugs`。本地副本以 `vendor/mattpocock/LICENSE` 授权，`scripts/vendor-grill.mjs` 可从固定修订重建。浏览器引擎使用原生 `@midscene/test` 的 `cases/steps`。[mattpocock/skills 固定修订](https://github.com/mattpocock/skills/tree/abeeaf95660ba9e8b7c753eb38f441ca707a8823)
+初始化只在消费父目录注册 `matt-full-stack`。流程通过限定名调用宿主已安装的 mattpocock 插件。缺少插件入口时，可直接读取本工具包 `vendor/mattpocock/` 下的参考文件及其 LICENSE。[mattpocock/skills 固定修订](https://github.com/mattpocock/skills/tree/abeeaf95660ba9e8b7c753eb38f441ca707a8823)

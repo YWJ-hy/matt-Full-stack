@@ -4,6 +4,7 @@ import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, re
 import { dirname, join } from 'node:path';
 import { blocks, managed, seeds, source, version } from './release.mjs';
 import { discover } from './discover.mjs';
+import { skillSources } from './matt-skills.mjs';
 
 const statePath = '.matt/manifest.json';
 const encode = value => JSON.stringify(value, null, 2) + '\n';
@@ -88,7 +89,31 @@ function sync(root, command, apply, keep) {
     }
   }
   for (const name of keep) if (!Object.hasOwn(files, name) || name === '.gitignore') throw new Error(`无法保留此路径：${name}`);
-  for (const name of Object.keys(state.files)) if (!Object.hasOwn(files, name)) console.log(`retired (保留原文件，停止管理) ${name}`);
+  const retired = new Set(Object.keys(state.files).filter(name => !Object.hasOwn(files, name)));
+  for (const [directory, resources] of Object.entries(skillSources)) {
+    const skill = directory.split('/')[1];
+    const prefix = `.agents/skills/${skill}/`;
+    if (!retired.has(`${prefix}SKILL.md`)) continue;
+    const removals = [];
+    let customized = false;
+    for (const resource of resources) {
+      const name = prefix + resource;
+      const old = read(root, name);
+      if (old === null) continue;
+      const base = state.files[name];
+      if (!base || base.kept || digest(old) !== base.upstream || digest(old) !== digest(template(`vendor/mattpocock/${skill}/${resource}`))) {
+        customized = true;
+        break;
+      }
+      removals.push({ name, old, action: 'remove-duplicate' });
+    }
+    if (customized) {
+      console.log(`保留含本地改动的 skill，请核对同名入口 ${prefix}`);
+      continue;
+    }
+    for (const change of removals) { changes.push(change); retired.delete(change.name); }
+  }
+  for (const name of retired) console.log(`retired (保留原文件，停止管理) ${name}`);
   const seeded = new Set(state.seeded ?? []);
   for (const [name, src] of Object.entries({ ...seeds, '.matt/workspace.json': null })) {
     if (!seeded.has(name) && !existsSync(safePath(root, name))) changes.push({ name, old: null, next: src ? template(src) : encode(discover(root).config), action: 'seed' });
@@ -98,9 +123,10 @@ function sync(root, command, apply, keep) {
   if (digest(previous) !== digest(manifest)) changes.push({ name: statePath, old: previous, next: manifest, action: 'manifest' });
   for (const change of changes) console.log(`${change.action} ${change.name}`);
   if (conflicts) throw new Error(`${conflicts} 处冲突，本次未应用；请对比模板或查看 AI_SETUP.md 的 --keep`);
-  if (apply) for (const { name, old, next } of changes) {
+  if (apply) for (const { name, old, next, action } of changes) {
     if (read(root, name) !== old) throw new Error(`文件在预览后发生变化：${name}，请重新运行`);
-    atomicWrite(root, name, next);
+    if (action === 'remove-duplicate') unlinkSync(safePath(root, name));
+    else atomicWrite(root, name, next);
   }
   console.log(`${apply ? 'applied' : 'preview'} ${version} changes=${changes.length}`);
 }

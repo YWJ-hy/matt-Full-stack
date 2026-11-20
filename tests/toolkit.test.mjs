@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, readdirSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -34,7 +35,7 @@ test('按角色生成会话计划，切换工具映射并拒绝无效配置', ()
   }
 });
 
-test('新建工作区的父会话与派单可以离线解析所有显式调用和本地参考', () => {
+test('新建工作区只注册一个流程 skill，各插件调用可通过上游参考解析', () => {
   const work = temp('skills-'); repo(work, 'ui', true); repo(work, 'api', false);
   cli(work, ['init', '--apply']);
   const skills = '.agents/skills';
@@ -43,11 +44,34 @@ test('新建工作区的父会话与派单可以离线解析所有显式调用�
   const names = new Set([...`${router}\n${prompts}`.matchAll(/\$mattpocock-skills:([a-z-]+)/g)].map(match => match[1]));
   for (const name of ['grill-with-docs', 'grilling', 'domain-modeling', 'implement', 'tdd', 'code-review', 'diagnosing-bugs', 'codebase-design']) assert.ok(names.has(name), name);
   for (const name of names) {
-    const installed = get(work, `${skills}/${name}/SKILL.md`);
-    assert.equal(installed, get(source, `vendor/mattpocock/${name}/SKILL.md`));
-    for (const link of installed.matchAll(/\[[^\]]+\]\(([\w./-]+\.md)\)/g)) assert.ok(existsSync(join(work, skills, name, link[1])), `${name}/${link[1]}`);
+    const reference = get(source, `vendor/mattpocock/${name}/SKILL.md`);
+    for (const link of reference.matchAll(/\[[^\]]+\]\(([\w./-]+\.md)\)/g)) assert.ok(existsSync(join(source, 'vendor/mattpocock', name, link[1])), `${name}/${link[1]}`);
   }
-  assert.ok(existsSync(join(work, skills, 'diagnosing-bugs/scripts/hitl-loop.template.sh')));
+  assert.deepEqual(readdirSync(join(work, skills)), ['matt-full-stack']);
+});
+
+test('升级按旧清单清理原样副本，整个保留本地定制的 skill', () => {
+  const work = temp('dup-'); repo(work, 'ui', true); repo(work, 'api', false);
+  cli(work, ['init', '--apply']);
+  const manifest = JSON.parse(get(work, '.matt/manifest.json'));
+  manifest.version = '1.2.0';
+  for (const path of ['implement/SKILL.md', 'tdd/SKILL.md', 'tdd/tests.md', 'tdd/mocking.md']) {
+    const body = get(source, `vendor/mattpocock/${path}`);
+    const name = `.agents/skills/${path}`;
+    put(work, name, body);
+    manifest.files[name] = { upstream: createHash('sha256').update(body.replaceAll('\r\n', '\n')).digest('hex') };
+  }
+  put(work, '.matt/manifest.json', manifest);
+  put(work, '.agents/skills/tdd/tests.md', 'project tests');
+  put(work, '.agents/skills/code-review/SKILL.md', 'project review');
+  assert.match(cli(work, ['update']), /remove-duplicate .*implement/);
+  assert.ok(existsSync(join(work, '.agents/skills/implement/SKILL.md')));
+  cli(work, ['update', '--apply']);
+  assert.ok(!existsSync(join(work, '.agents/skills/implement/SKILL.md')));
+  assert.ok(existsSync(join(work, '.agents/skills/tdd/SKILL.md')));
+  assert.equal(get(work, '.agents/skills/tdd/tests.md'), 'project tests');
+  assert.equal(get(work, '.agents/skills/code-review/SKILL.md'), 'project review');
+  assert.match(cli(work, ['update']), /changes=0/);
 });
 
 test('发现与幂等初始化：不改子仓、不接管已有父工程', () => {

@@ -3,7 +3,7 @@ name: matt-full-stack
 description: 在独立前后端仓库的共同父目录澄清跨端需求、交接单端实现或运行最终组合验收。
 ---
 
-显式调用下列 skill。若插件未向当前会话暴露某个名字，读取并执行 `<共同父目录>/.agents/skills/<短名>/SKILL.md` 及其引用，用绝对路径把这个入口带入子会话。
+显式调用宿主已安装的 mattpocock 插件 skill。若某个会话无法调用插件，父会话可提供上游工具包中 `vendor/mattpocock/<短名>/SKILL.md` 的可读绝对路径，供其直接读取及查阅引用。
 
 派单前，在共同父目录执行 `node .matt/runtime/sessions.mjs`，解析前端、后端和两路审查的启动设置。把每个角色的结果交给实际启动该会话的工具，同时把两路审查设置传给各端。具体启动和交接规则见 [派单模板](references/dispatch.md)。
 
