@@ -1,0 +1,7 @@
+{
+  "name": "ticket-desk-ui",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite", "test": "node --test", "build": "vite build" },
+  "devDependencies": { "vite": "7.3.1" }
+}

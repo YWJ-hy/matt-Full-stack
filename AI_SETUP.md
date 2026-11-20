@@ -1,5 +1,7 @@
 # AI 实施手册
 
+用户想先体验整个流程时，请从上游工具包的 `examples/README.md` 开始，用 `examples/create-workspace.mjs` 生成独立体验工作区，然后在新父目录按 `REQUIREMENT.md` 派单。工单台提供本机体验登录与可立即执行的列表基线。
+
 **一句启动提示：**「请按 matt-Full-stack 的 AI_SETUP.md，在当前前后端共同父目录初始化或升级，自动发现并验证环境；只有账号、密钥或无法推断的业务决定再找我。」
 
 ## 1. 确认边界，预览再安装

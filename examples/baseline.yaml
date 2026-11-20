@@ -1,0 +1,10 @@
+cases:
+  - name: BASE-01 体验客服登录后可看到预置工单
+    steps:
+      - app.open: /
+      - app.visible:
+          selector: 'li:first-child strong'
+          text: QA-101 更换收货地址
+      - app.visible:
+          selector: 'li:nth-child(2) small'
+          text: 处理中 · 客服乙

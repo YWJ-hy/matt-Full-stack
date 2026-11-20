@@ -6,6 +6,8 @@
 
 **交给 AI：**「请按这个工具包的 [AI_SETUP.md](AI_SETUP.md)，在当前前后端共同父目录初始化或升级，自动发现并验证环境。」
 
+**第一次体验**可以从客服工单台开始。在工具包根目录执行 `node examples/create-workspace.mjs ../matt-ticket-demo`，然后在新目录打开父会话，把 `REQUIREMENT.md` 交给 AI。示例提供能运行的前后端、两张合成工单和「客服领取工单」需求。[体验指南](examples/README.md) · [需求与验收场景](examples/REQUIREMENT.md)
+
 | 入口 | 作用 |
 |---|---|
 | `node <工具包>/bin/matt.mjs discover` | 只读识别候选项目、启动命令与健康地址 |
