@@ -5,6 +5,8 @@ description: 在独立前后端仓库的共同父目录澄清跨端需求、交�
 
 显式调用下列 skill。若插件未向当前会话暴露某个名字，读取并执行 `<共同父目录>/.agents/skills/<短名>/SKILL.md` 及其引用，用绝对路径把这个入口带入子会话。
 
+派单前，在共同父目录执行 `node .matt/runtime/sessions.mjs`，解析前端、后端和两路审查的启动设置。把每个角色的结果交给实际启动该会话的工具，同时把两路审查设置传给各端。具体启动和交接规则见 [派单模板](references/dispatch.md)。
+
 1. **澄清需求。** 父会话调用 `$mattpocock-skills:grill-with-docs`，按它的指令调用 `$mattpocock-skills:grilling` 和 `$mattpocock-skills:domain-modeling`。先查前端路由、请求、后端 handler 和仓库指令，只询问无法推断的业务决定。复用已确认的决定，术语和必要的 ADR 写在父层。
 2. **确定怎样验收。** 父会话用 `spec/full-stack.md` 建立公共工作单，记录契约版本、成功和失败响应、合成数据与清理、各端已确认的公开测试边界、用户能看到的预期。把每个场景 ID 对应到 `e2e/cases/*.yaml` 的具名 case。允许委派时可请子会话只读设计复杂场景，由父会话核实并维护原生 `cases/steps`。
 3. **分别派单。** 读取 [前端、后端及修复提示词](references/dispatch.md)，填入两个仓库各自的起始 SHA、同一 spec 版本及相关 case。给每个实现会话显式派发 `$mattpocock-skills:implement`，由它调用 `$mattpocock-skills:tdd` 和 `$mattpocock-skills:code-review`。有会话工具时分别发送并记下两个会话的引用。没有时交付两份填好的提示词，标注待派发。

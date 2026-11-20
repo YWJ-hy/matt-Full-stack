@@ -7,6 +7,33 @@ import { get, put, repo, run, snapshot, temp } from './helpers.mjs';
 
 const cli = (cwd, args, status = 0, release = source) => run(cwd, process.execPath, [join(release, 'bin/matt.mjs'), ...args], status);
 
+test('按角色生成会话计划，切换工具映射并拒绝无效配置', () => {
+  const work = temp('sessions-'); repo(work, 'ui', true); repo(work, 'api', false);
+  cli(work, ['init', '--apply']);
+  const command = (args = [], status = 0) => run(join(work, 'ui'), process.execPath, [join(work, '.matt/runtime/sessions.mjs'), ...args], status);
+  const defaults = JSON.parse(command());
+  assert.equal(defaults.backend.model, 'inherit');
+  assert.equal(defaults.frontend.worktree, false);
+  assert.equal(defaults.standards.access, 'read-only');
+  assert.equal(defaults.spec.freshContext, true);
+  const path = '.matt/sessions.json';
+  const roles = { frontend: { model: '@coding', worktree: true }, spec: { model: 'fixed-model' } };
+  put(work, path, { version: 1, roles });
+  assert.equal(JSON.parse(command(['spec'])).model, 'fixed-model');
+  command(['frontend'], 1);
+  put(work, '.matt/private/models.json', { coding: 'model-A' });
+  put(work, '.matt/private/alternate.json', { coding: 'model-B' });
+  const first = JSON.parse(command()).frontend;
+  assert.equal(first.model, 'model-A'); assert.equal(first.worktree, true);
+  assert.equal(JSON.parse(command(['frontend', '--models', '.matt/private/alternate.json'])).model, 'model-B');
+  const custom = get(work, path);
+  assert.match(cli(work, ['update', '--apply']), /changes=0/);
+  assert.equal(get(work, path), custom);
+  for (const invalid of [{ frontend: { worktree: 'false' } }, { typo: {} }, { spec: { modle: 'oops' } }]) {
+    put(work, path, { version: 1, roles: invalid }); command([], 1);
+  }
+});
+
 test('新建工作区的父会话与派单可以离线解析所有显式调用和本地参考', () => {
   const work = temp('skills-'); repo(work, 'ui', true); repo(work, 'api', false);
   cli(work, ['init', '--apply']);

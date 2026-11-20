@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "roles": {
+    "frontend": { "model": "inherit", "worktree": false },
+    "backend": { "model": "inherit", "worktree": false },
+    "standards": { "model": "inherit", "worktree": false },
+    "spec": { "model": "inherit", "worktree": false }
+  }
+}

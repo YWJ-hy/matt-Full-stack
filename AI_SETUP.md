@@ -62,6 +62,33 @@ cases:
 
 ## 4. 验收与交接
 
+### 跨工具会话配置
+
+在消费父目录编辑 `.matt/sessions.json`。`init` 或 `update --apply` 首次生成它，之后由项目维护。`frontend` / `backend` 控制实现会话，`standards` / `spec` 控制两端各自的审查会话。下面的配置让两端各用独立 worktree，规范审查继承本端模型，需求审查使用指定模型。
+
+```json
+{
+  "version": 1,
+  "roles": {
+    "frontend": { "model": "@coding", "worktree": true },
+    "backend":  { "model": "inherit", "worktree": true },
+    "standards": { "model": "inherit", "worktree": false },
+    "spec": { "model": "@review", "worktree": false }
+  }
+}
+```
+
+`model` 接受当前工具的真实模型 ID、`inherit` 或 `@别名`。省略角色或字段时默认 `inherit` 和 `worktree: false`。使用别名时，在 `.matt/private/models.json` 填入当前工具的映射，例如 `{"coding":"当前工具的实现模型ID","review":"当前工具的审查模型ID"}`。同一台机器切换工具时，可用 `--models .matt/private/另一工具.json` 选择对应映射文件。相对路径以消费父目录为准。映射只填模型 ID；浏览器视觉模型仍在 `model.env` 配置。
+
+```sh
+node .matt/runtime/sessions.mjs
+node .matt/runtime/sessions.mjs spec --models .matt/private/另一工具.json
+```
+
+命令输出可供任意会话工具读取的 JSON。派发者使用宿主实际提供的模型选择、工作目录、工作树及权限机制，并按派单模板回报结果。只能手动开会话的工具也可以使用同一份输出开会话并粘贴派单。模型不可用或无法满足隔离时标记待派发，由使用者选择合适的工具或调整配置。
+
+### 执行验收
+
 每个新需求在父会话中启动：「请用 `$matt-full-stack` 完成〈需求〉，按公共 spec 派发前后端，最后验收实际组合。」父会话按流程 skill 调用 `grill-with-docs`。派单取 `.agents/skills/matt-full-stack/references/dispatch.md` 的公共正文和对应角色段。每个子会话都收到完整的 `$mattpocock-skills:implement` 调用、TDD 边界、review 基线和 skill 的父层绝对路径。失败回派时保留原会话引用和运行版本对。
 
 父会话执行 `.agents/skills/matt-full-stack/SKILL.md`。单文件运行 `node .matt/runtime/run.mjs test e2e/cases/<场景>.yaml`，全量运行 `node .matt/runtime/run.mjs test`。以退出码、原生 summary/HTML、具体 case 与预期对应关系为证据。`.matt/reports/<运行ID>/receipt.json` 记录本地 checkout SHA 和 dirty 状态；**不是**已部署版本证明。核对服务构建标识或启动记录、真实账号/后端与合成数据，记录在 `spec/<需求>.md`；任何缺项标为未验证/阻塞。工具返回零不自动签收。注意数据清理、测试幂等和不同角色隔离。

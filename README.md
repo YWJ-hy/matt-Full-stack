@@ -13,6 +13,7 @@
 | `node .matt/runtime/run.mjs doctor` / `test` | 在已安装的消费父目录检查环境或运行原生 Midscene Test YAML |
 | [工作流 skill](templates/matt-full-stack/SKILL.md) | 父层澄清与维护 YAML；子仓独立 TDD、review、交接；父层验收实际版本组合 |
 | [子会话派单模板](templates/matt-full-stack/references/dispatch.md) | 前后端分别调用 `implement`，用 `tdd` 和 `code-review` 交付，验收失败回原会话修复 |
+| [会话配置](AI_SETUP.md#跨工具会话配置) | 按角色配置模型和 worktree，从父目录执行 `node .matt/runtime/sessions.mjs` 输出跨工具派单设置 |
 | [验证记录](VALIDATION.md) | 自动化演练、实际浏览器结果与未验证范围 |
 
 开发：Node 22.12+，`npm test` 验证安装与升级；`npm run test:browser` 在 `.work/` 新建含两个 Git 子仓的全栈夹具，安装锁定依赖并运行 Chromium（首次需要网络）。
