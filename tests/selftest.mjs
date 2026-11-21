@@ -18,7 +18,7 @@ async function start(role, ...args) {
 }
 try {
   console.log(`隔离体验工作区：${work}`);
-  run(source, process.execPath, ['examples/create-workspace.mjs', work]);
+  run(source, process.execPath, ['examples/create-workspace.mjs', work, '--e2e', 'on']);
   for (const dir of ['frontend', 'backend', '.matt/runtime']) {
     run(work, process.execPath, [process.env.npm_execpath, 'ci', '--prefix', dir, '--ignore-scripts', '--no-audit', '--no-fund']);
   }

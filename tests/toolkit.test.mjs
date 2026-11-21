@@ -9,9 +9,55 @@ import { get, put, repo, run, snapshot, temp } from './helpers.mjs';
 
 const cli = (cwd, args, status = 0, release = source) => run(cwd, process.execPath, [join(release, 'bin/matt.mjs'), ...args], status);
 
+test('仅开发：不安装 E2E 资产，仍可派单；预览和切换模式不丢项目文件', () => {
+  const work = join(temp('dispatch-'), 'demo');
+  run(source, process.execPath, ['examples/create-workspace.mjs', work, '--e2e', 'off']);
+  const path = '.matt/workflow.json';
+  const enabled = () => JSON.parse(get(work, path)).e2e.enabled;
+  assert.equal(enabled(), false);
+  for (const file of ['e2e', '.matt/runtime/package.json', '.matt/runtime/node_modules', '.matt/runtime/selftest', 'frontend/selftest', 'backend/selftest', '.matt/model.env.example']) assert.ok(!existsSync(join(work, file)), file);
+  assert.equal(JSON.parse(run(work, process.execPath, ['.matt/runtime/sessions.mjs', 'frontend'])).role, 'frontend');
+  const invoke = args => run(work, process.execPath, ['.matt/runtime/run.mjs', ...args], 1);
+  for (const command of ['setup', 'selftest', 'chromium', 'model-config', 'model', 'doctor', 'nodes', 'test']) assert.match(invoke([command]), /已关闭 E2E/);
+  assert.ok(!existsSync(join(work, '.matt/reports')));
+  const spec = '已确认的接口契约'; put(work, 'spec/ticket.md', spec);
+  const sessions = get(work, '.matt/sessions.json');
+  assert.match(cli(work, ['update', '--e2e', 'on']), /seed e2e\/matt.config.mjs/);
+  assert.equal(enabled(), false);
+  cli(work, ['update', '--e2e', 'on', '--apply']);
+  assert.equal(enabled(), true);
+  assert.match(invoke(['setup', '4273', '4274']), /MIDSCENE_MODEL_API_KEY/);
+  const assets = ['e2e/cases/ticket.yaml', 'e2e/login.mjs', '.matt/private/model.env'];
+  for (const file of assets) put(work, file, `local: ${file}`);
+  cli(work, ['update', '--e2e', 'off', '--apply']);
+  assert.equal(enabled(), false);
+  assert.match(cli(work, ['init', '--apply']), /changes=0/);
+  assert.match(invoke(['test']), /已关闭 E2E/);
+  cli(work, ['update', '--e2e', 'on', '--apply']);
+  for (const file of assets) assert.equal(get(work, file), `local: ${file}`);
+  assert.equal(get(work, '.matt/sessions.json'), sessions);
+  assert.equal(get(work, 'spec/ticket.md'), spec);
+});
+
+test('首次非交互安装需明确选择；非法配置和丢失选择不会静默开启模型', () => {
+  const work = temp('choice-'); repo(work, 'ui', true); repo(work, 'api', false);
+  assert.match(cli(work, ['init', '--apply'], 1), /请选择模式/);
+  assert.match(cli(work, ['init', '--e2e', 'maybe', '--apply'], 1), /on 或 off/);
+  assert.ok(!existsSync(join(work, '.matt')));
+  cli(work, ['init', '--apply', '--e2e', 'off']);
+  const path = '.matt/workflow.json';
+  put(work, path, { e2e: { enabled: 'false' } });
+  assert.match(cli(work, ['update', '--apply'], 1), /布尔值/);
+  assert.match(run(work, process.execPath, ['.matt/runtime/run.mjs', 'model'], 1), /布尔值/);
+  unlinkSync(join(work, path));
+  assert.match(cli(work, ['update', '--apply'], 1), /缺少 .matt\/workflow.json/);
+  cli(work, ['update', '--e2e', 'off', '--apply']);
+  assert.equal(JSON.parse(get(work, path)).e2e.enabled, false);
+});
+
 test('体验环境必须补齐模型、验证模型和隔离链路才能完成初始化', () => {
   const work = join(temp('model-setup-'), 'demo');
-  const created = run(source, process.execPath, ['examples/create-workspace.mjs', work]);
+  const created = run(source, process.execPath, ['examples/create-workspace.mjs', work, '--e2e', 'on']);
   assert.match(created, /模型.*隔离/);
   put(work, '.matt/workspace.json', 'must not read business settings');
   const invoke = (args, status = 0) => run(work, process.execPath, ['.matt/runtime/run.mjs', ...args], status);
@@ -41,7 +87,7 @@ test('体验环境必须补齐模型、验证模型和隔离链路才能完成�
 
 test('环境自测必须指定两个独立本机测试端口，不回退到业务配置', () => {
   const work = temp('isolated-'); repo(work, 'ui', true); repo(work, 'api', false);
-  cli(work, ['init', '--apply']);
+  cli(work, ['init', '--apply', '--e2e', 'on']);
   put(work, '.matt/workspace.json', '业务配置不应读取');
   for (const args of [[], ['4273', '4273'], ['https://example.org', '4274'], ['0', '65536']]) {
     assert.match(run(work, process.execPath, ['.matt/runtime/run.mjs', 'selftest', ...args], 1), /独立.*端口/);
@@ -50,7 +96,7 @@ test('环境自测必须指定两个独立本机测试端口，不回退到业�
 
 test('按角色生成会话计划，切换工具映射并拒绝无效配置', () => {
   const work = temp('sessions-'); repo(work, 'ui', true); repo(work, 'api', false);
-  cli(work, ['init', '--apply']);
+  cli(work, ['init', '--apply', '--e2e', 'off']);
   const command = (args = [], status = 0) => run(join(work, 'ui'), process.execPath, [join(work, '.matt/runtime/sessions.mjs'), ...args], status);
   const defaults = JSON.parse(command());
   assert.equal(defaults.backend.model, 'inherit');
@@ -77,7 +123,7 @@ test('按角色生成会话计划，切换工具映射并拒绝无效配置', ()
 
 test('新建工作区只注册父工作流，随包 skill 及引用完整，其他工作流使用宿主入口', () => {
   const work = temp('skills-'); repo(work, 'ui', true); repo(work, 'api', false);
-  cli(work, ['init', '--apply']);
+  cli(work, ['init', '--apply', '--e2e', 'off']);
   const skills = '.agents/skills';
   const router = get(work, `${skills}/matt-full-stack/SKILL.md`);
   const prompts = get(work, `${skills}/matt-full-stack/references/dispatch.md`);
@@ -95,7 +141,7 @@ test('新建工作区只注册父工作流，随包 skill 及引用完整，其�
 
 test('升级按旧清单清理原样副本，整个保留本地定制的 skill', () => {
   const work = temp('dup-'); repo(work, 'ui', true); repo(work, 'api', false);
-  cli(work, ['init', '--apply']);
+  cli(work, ['init', '--apply', '--e2e', 'on']);
   const manifest = JSON.parse(get(work, '.matt/manifest.json'));
   manifest.version = '1.2.0';
   for (const path of ['implement/SKILL.md', 'tdd/SKILL.md', 'tdd/tests.md', 'tdd/mocking.md']) {
@@ -129,7 +175,7 @@ test('发现与幂等初始化：不改子仓、不接管已有父工程', () =>
   assert.equal(report.config.backend.healthUrl, 'http://localhost:3040/healthz');
   assert.equal(report.config.backend.start, 'npm run dev');
   assert.match(cli(work, ['init']), /preview/); assert.deepEqual(readdirSync(work), before);
-  cli(work, ['init', '--apply']);
+  cli(work, ['init', '--apply', '--e2e', 'on']);
   const mtime = statSync(join(work, '.matt/manifest.json')).mtimeMs;
   assert.match(cli(work, ['init', '--apply']), /changes=0/);
   assert.equal(statSync(join(work, '.matt/manifest.json')).mtimeMs, mtime);
@@ -151,7 +197,11 @@ test('旧版升级：预览无写入，冲突整批停止，保留合并和项�
   put(older, 'AI_SETUP.md', '旧手册'); put(older, 'templates/model.env.example', '旧模板');
   put(older, 'templates/matt-full-stack/SKILL.md', '旧流程'); put(older, 'templates/instructions.md', '旧入口');
   const work = temp('upgrade-'); repo(work, 'ui', true); repo(work, 'api', false);
-  cli(work, ['init', '--apply'], 0, older);
+  cli(work, ['init', '--apply', '--e2e', 'on'], 0, older);
+  const oldManifest = JSON.parse(get(work, '.matt/manifest.json'));
+  oldManifest.seeded = oldManifest.seeded.filter(name => name !== '.matt/workflow.json');
+  put(work, '.matt/manifest.json', oldManifest);
+  unlinkSync(join(work, '.matt/workflow.json'));
   const local = '.matt/AI_SETUP.md'; put(work, local, '本地合并的手册');
   const assets = ['spec/full-stack.md', 'e2e/cases/environment.yaml', 'e2e/matt.config.mjs', 'e2e/login.mjs', '.matt/workspace.json', '.matt/private/model.env'];
   for (const path of assets) put(work, path, `local: ${path}`);
@@ -162,6 +212,7 @@ test('旧版升级：预览无写入，冲突整批停止，保留合并和项�
     assert.equal(get(work, '.matt/manifest.json'), before); assert.equal(get(work, '.matt/model.env.example'), '旧模板');
   }
   cli(work, ['update', '--apply', '--keep', local]);
+  assert.equal(JSON.parse(get(work, '.matt/workflow.json')).e2e.enabled, true);
   assert.equal(JSON.parse(get(work, '.matt/manifest.json')).version, version);
   assert.equal(get(work, local), '本地合并的手册');
   assert.equal(get(work, '.matt/model.env.example'), get(source, 'templates/model.env.example'));
@@ -175,18 +226,18 @@ test('旧版升级：预览无写入，冲突整批停止，保留合并和项�
 
 test('碰撞与链接：不写入目标子仓，不覆盖无基线文件', () => {
   const work = temp('collision-'); const nested = repo(work, 'e2e', true); repo(work, 'api', false);
-  assert.match(cli(work, ['init', '--apply'], 1), /路径/);
+  assert.match(cli(work, ['init', '--apply', '--e2e', 'on'], 1), /路径/);
   assert.ok(!existsSync(join(nested, 'cases')));
   const linked = temp('link-'); repo(linked, 'ui', true); repo(linked, 'api', false);
   symlinkSync(nested, join(linked, 'spec'), process.platform === 'win32' ? 'junction' : 'dir');
-  assert.match(cli(linked, ['init', '--apply'], 1), /路径/); assert.ok(!existsSync(join(nested, 'full-stack.md')));
+  assert.match(cli(linked, ['init', '--apply', '--e2e', 'off'], 1), /路径/); assert.ok(!existsSync(join(nested, 'full-stack.md')));
   const owned = temp('owned-'); repo(owned, 'ui', true); repo(owned, 'api', false); put(owned, '.matt/runtime/run.mjs', 'user file');
-  assert.match(cli(owned, ['init', '--apply'], 1), /CONFLICT/); assert.equal(get(owned, '.matt/runtime/run.mjs'), 'user file');
+  assert.match(cli(owned, ['init', '--apply', '--e2e', 'off'], 1), /CONFLICT/); assert.equal(get(owned, '.matt/runtime/run.mjs'), 'user file');
   assert.ok(!existsSync(join(owned, '.matt/manifest.json')));
 });
 
 test('忽略凭据和报告；拒绝绕开保护段及错 cwd', () => {
-  const work = temp('ignore-'); repo(work, 'ui', true); repo(work, 'api', false); run(work, 'git', ['init', '-q']); cli(work, ['init', '--apply']);
+  const work = temp('ignore-'); repo(work, 'ui', true); repo(work, 'api', false); run(work, 'git', ['init', '-q']); cli(work, ['init', '--apply', '--e2e', 'on']);
   for (const path of ['.matt/private/model.env', '.matt/private/state.json', '.matt/reports/run/result.json', 'e2e/midscene_run/report/report.html']) run(work, 'git', ['check-ignore', path]);
   put(work, '.gitignore', get(work, '.gitignore').replace('/.matt/private/', '# deleted'));
   assert.match(cli(work, ['update', '--apply', '--keep', '.gitignore'], 1), /CONFLICT/);

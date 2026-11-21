@@ -25,7 +25,7 @@ try {
   const password = randomUUID(), order = `QA-${randomUUID().slice(0, 8)}`;
   const backend = await start(api, { FIXTURE_PASSWORD: password, FIXTURE_ORDER: order });
   const frontend = await start(ui, { FIXTURE_BACKEND: backend });
-  run(work, process.execPath, [join(source, 'bin/matt.mjs'), 'init', '--apply']);
+  run(work, process.execPath, [join(source, 'bin/matt.mjs'), 'init', '--apply', '--e2e', 'on']);
   const config = JSON.parse(get(work, '.matt/workspace.json'));
   Object.assign(config.frontend, { baseUrl: frontend, healthUrl: frontend });
   Object.assign(config.backend, { baseUrl: backend, healthUrl: backend + '/healthz' });

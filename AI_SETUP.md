@@ -1,19 +1,21 @@
 # AI 实施手册
 
-首次接入或升级在共同父目录单开环境会话。**初始化完成**以第 2 节的 `setup` 返回 0 为准：Midscene 视觉模型验证通过，且浏览器能通过隔离前端读回内存后端的标记。登录、真实业务服务和业务用例留给需求会话。
+首次接入或升级在共同父目录单开环境会话。项目是否使用 Midscene 由 `.matt/workflow.json` 的布尔值 `e2e.enabled` 决定。仅开发在第 1 节完成初始化；启用 E2E 还需第 2 节的 `setup` 返回 0。登录、真实业务服务和业务用例留给启用 E2E 的需求会话。
 
-**体验项目：** `examples/create-workspace.mjs` 已安装工具包，并在两端的 `selftest/` 中备好 Vite 和 Express 夹具。从第 2 节开始，无需启动工单应用。通过后在同一父目录新开需求会话：`$matt-full-stack 实现 REQUIREMENT.md 中的「客服领取工单」。`
+**体验项目：** 创建脚本已按所选模式安装。仅开发可直接在父目录开需求会话：`$matt-full-stack 实现 REQUIREMENT.md 中的「客服领取工单」。` 选择 E2E 的体验项目已备好两端的 `selftest/` 夹具，先做第 2 节，无需启动工单应用。
 
 ## 1. 确认边界，预览再安装
 
-在**消费父目录**启动终端；定位包含本手册和 `bin/matt.mjs` 的本地工具包。下例是 PowerShell（Windows 用 `npm.cmd`，其余平台用 `npm`）：
+首次接入且尚无选择时，先问用户：「只做开发派单（推荐），还是同时启用 Midscene E2E？」用户已说明则直接采用。交互终端也会在首次 `init --apply` 询问；非交互环境须传 `--e2e off` 或 `--e2e on`。已有配置不要再问，升级见第 5 节。
+
+在**消费父目录**启动终端；定位本地工具包。下例是 PowerShell（所选模式为仅开发；启用 E2E 时将两条命令的 `off` 改为 `on`）：
 
 ```powershell
 $matt = 'C:\path\to\matt-full-stack\bin\matt.mjs' # 替换成发现的绝对路径
 node --version
 node $matt discover
-node $matt init
-node $matt init --apply
+node $matt init --e2e off
+node $matt init --e2e off --apply
 node $matt init
 ```
 
@@ -21,7 +23,9 @@ node $matt init
 
 `discover` 只看直接下属 Git 仓库（含 worktree）、根级包/锁/启动脚本及 README 的本地地址；输出是**候选**。只读核对技术栈和仓库指令，不搜索 `.env`、浏览器配置或历史凭据。`.matt/workspace.json` 的 URL 和启动命令留给业务验收，初始化时不访问、不执行，也不改写为夹具地址。已有两个空 Git 仓但技术栈尚未选定时，先请用户确认两端选型，不用示例栈代替。
 
-## 2. 在父目录准备运行环境
+核对 `.matt/workspace.json` 中的前后端仓库；有歧义时请用户确认。用 `node .matt/runtime/sessions.mjs` 检查派单角色设置。**仅开发在此结束**：报告「开发派单就绪」，不询问视觉模型、不安装 E2E 依赖或浏览器、不创建夹具。日常交付遵循第 4 节的派单流程。
+
+## 2. 仅在启用 E2E 时准备 Midscene 运行环境
 
 **先向用户收齐模型配置。** 在消费父目录运行 `node .matt/runtime/run.mjs model-config`。它不联网，只列缺少的字段，不显示已有值。初次接入缺少配置是预期结果：此时暂停后续步骤，直接问用户缺哪几项；已有的不要重复问，也不要用默认值代填。
 
@@ -51,7 +55,7 @@ node .matt/runtime/run.mjs setup 4273 4274  # 示例：实际的前端、后端�
 
 `setup` 先执行原生 `model verify`，通过后才运行隔离自测 `ENV-01`。夹具使用全新 Chromium 上下文和本次 UUID 核对标记，不接收模型凭据，不加载业务登录钩子、用例或健康地址。两步都通过才报告环境就绪；否则报告失败的步骤，不交接到需求会话。记录模型验证结果（不含凭据）、夹具启动命令和报告位置（`.matt/reports/selftest-*/`），只停止本次启动的进程。单独排障可运行 `model` 或 `selftest <前端端口> <后端端口>`，各自通过都不代表初始化完成。
 
-## 3. 业务验收时配置登录与用例
+## 3. 仅在启用 E2E 时配置业务登录与用例
 
 报告可能含页面、Cookie 相关错误或截图，按第 2 节保护私有文件，不复制真实数据，不上传报告。CI 从 Secret Store 临时落盘并按环境策略销毁。
 
@@ -101,13 +105,17 @@ node .matt/runtime/sessions.mjs spec --models .matt/private/另一工具.json
 
 - 「只调研工单并发领取方案，不改产品代码。」父会话交付调研结论，不派实现单。若宿主缺少 `research` 且工具包无本地参考，说明缺失并停止。
 - 「只修后端，按已确认的契约返回 409。」只向后端派 `implement`，沿用 TDD 和审查流程；联调可使用未改动的前端版本。
-- 「只验收当前版本的领取工单场景。」直接核对版本、运行已有 case 并报告结果；失败也不自动派修复。
+- 「只验收当前版本的领取工单场景。」启用 E2E 时核对版本、运行已有 case 并报告结果；失败也不自动派修复。仅开发项目说明当前设置，由用户决定是否切换。
 
-### 执行验收
+仅开发时，父会话按 spec 场景 ID 派发两端任务、登记版本和本端测试与审查结果，相关端交接后即可交付，并注明「按项目配置未执行 E2E」。不编写 YAML，不执行下节的组合验收。
+
+### 执行验收（仅 E2E）
 
 父会话执行 `.agents/skills/matt-full-stack/SKILL.md`。此时才核实 `.matt/workspace.json` 的业务测试地址与版本，启动授权的测试服务；`doctor` 检查这两个地址和 Chromium，`nodes` 生成编写 YAML 用的节点清单。单文件运行 `node .matt/runtime/run.mjs test e2e/cases/<场景>.yaml`，全量运行 `node .matt/runtime/run.mjs test`。以退出码、原生 summary/HTML、具体 case 与预期对应关系为证据。`.matt/reports/<运行ID>/receipt.json` 记录本地 checkout SHA 和 dirty 状态；**不是**已部署版本证明。核对服务构建标识或启动记录、真实账号/后端与合成数据，记录在 `spec/<需求>.md`；任何缺项标为未验证/阻塞。工具返回零不自动签收。注意数据清理、测试幂等和不同角色隔离。
 
-## 5. 升级与冲突
+## 5. 升级、切换模式与冲突
+
+升级保留项目的 `e2e.enabled`；1.6 及更早的工作区首次升级时沿用原行为（`true`）。要切换，在共同父目录运行 `node $matt update --e2e off` 预览，再加 `--apply`；启用用 `--e2e on`。这会保存选择并按需补齐工具文件，不用重建工作区。关闭不会删除已有用例、登录适配、凭据或报告；再次开启后按第 2 节完成初始化。若手工编辑 `.matt/workflow.json`，请再运行 `update --apply` 同步对应文件。
 
 从 1.2 或更早版本升级时，`remove-duplicate` 标出与旧清单和上游原文均匹配的 mattpocock 文件。应用后宿主使用已安装的插件。检测到本地改动的 skill 会整体保留，用户可在核对差异后自行整理同名入口。
 
@@ -123,7 +131,7 @@ node $matt update
 
 - 接受上游：只将对应文件/标记段改成新版模板，再预览应用。保留本地或手工合并：用 `node $matt update --keep '<清单相对路径>'` 预览，然后同参数加 `--apply`。可重复 `--keep`；记录接受的本地摘要，上游再变会再次提示。`.gitignore` 的保护段必须恢复，额外规则可放段外。
 - 若进程中断，只在确认 `.matt/install.lock` 记录的安装进程已结束后移除该锁，重新预览；写入逐文件原子替换，清单最后更新。拒绝降级、未知清单格式、目标路径链接及子仓目录碰撞。切勿为消除冲突删除清单。
-- 升级后按第 2 节复用已有模型配置，重新运行 `setup`。旧版 `e2e/cases/environment.yaml` 可能是项目自有文件，升级保留；它仍走业务配置，不作环境自测。
+- 仅在 E2E 启用时，升级后按第 2 节复用已有模型配置，重新运行 `setup`。旧版 `e2e/cases/environment.yaml` 可能是项目自有文件，升级保留；它仍走业务配置，不作环境自测。
 
 ## 故障分流
 

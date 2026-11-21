@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { parseEnv } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { systemEnv } from './system-env.mjs';
+import { parseWorkflow, workflowPath } from './workflow.mjs';
 
 const [command, selected, ...extra] = process.argv.slice(2);
 const root = process.cwd();
@@ -58,6 +59,7 @@ function versions(workspace) {
 
 async function main() {
   if (relative(root, resolve(runtime, '../..')) || !existsSync('.matt/manifest.json')) throw new Error('请从已初始化的共同父目录运行');
+  if (!parseWorkflow(readFileSync(workflowPath, 'utf8')).e2e.enabled) throw new Error('项目已关闭 E2E（仅开发），未运行命令。如需浏览器验收，请按 .matt/AI_SETUP.md 启用并初始化 E2E。');
   if (command === 'selftest' || command === 'setup') {
     const ports = [selected, extra[0]];
     if (extra.length !== 1 || ports.some(port => !/^[1-9]\d{0,4}$/.test(port) || Number(port) > 65535) || ports[0] === ports[1]) {

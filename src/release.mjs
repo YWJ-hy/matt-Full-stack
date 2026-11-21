@@ -4,20 +4,23 @@ import { join } from 'node:path';
 
 export const source = fileURLToPath(new URL('../', import.meta.url));
 export const version = JSON.parse(readFileSync(join(source, 'package.json'))).version;
-const runtime = ['package.json', 'package-lock.json', 'project.mjs', 'run.mjs', 'system-env.mjs', 'sessions.mjs'];
+const runtimeFiles = names => Object.fromEntries(names.map(name => [`.matt/runtime/${name}`, `templates/runtime/${name}`]));
 export const managed = {
-  ...Object.fromEntries(runtime.map(name => [`.matt/runtime/${name}`, `templates/runtime/${name}`])),
-  '.matt/runtime/selftest/environment.yaml': 'templates/runtime/selftest/environment.yaml',
-  '.matt/runtime/selftest/config.mjs': 'templates/runtime/selftest/config.mjs',
+  ...runtimeFiles(['run.mjs', 'workflow.mjs', 'system-env.mjs', 'sessions.mjs']),
   '.matt/AI_SETUP.md': 'AI_SETUP.md',
-  '.matt/model.env.example': 'templates/model.env.example',
   '.agents/skills/matt-full-stack/SKILL.md': 'templates/matt-full-stack/SKILL.md',
   '.agents/skills/matt-full-stack/references/dispatch.md': 'templates/matt-full-stack/references/dispatch.md',
+};
+export const e2eManaged = {
+  ...runtimeFiles(['package.json', 'package-lock.json', 'project.mjs', 'selftest/environment.yaml', 'selftest/config.mjs']),
+  '.matt/model.env.example': 'templates/model.env.example',
 };
 export const blocks = { 'AGENTS.md': 'templates/instructions.md', '.gitignore': 'templates/ignores.txt' };
 export const seeds = {
   '.matt/sessions.json': 'templates/sessions.json',
   'spec/full-stack.md': 'templates/spec.md',
+};
+export const e2eSeeds = {
   'e2e/matt.config.mjs': 'templates/matt.config.mjs',
   'e2e/login.mjs': 'templates/login.mjs',
 };

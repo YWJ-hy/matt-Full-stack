@@ -2,9 +2,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import { isUtf8 } from 'node:buffer';
 import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { blocks, managed, seeds, source, version } from './release.mjs';
+import { blocks, e2eManaged, e2eSeeds, managed, seeds, source, version } from './release.mjs';
 import { discover } from './discover.mjs';
 import { skillSources } from './matt-skills.mjs';
+import { askE2e } from './e2e-option.mjs';
+import { parseWorkflow, workflowPath } from '../templates/runtime/workflow.mjs';
 
 const statePath = '.matt/manifest.json';
 const encode = value => JSON.stringify(value, null, 2) + '\n';
@@ -60,16 +62,31 @@ function atomicWrite(root, name, text) {
   } finally { if (existsSync(temp)) unlinkSync(temp); }
 }
 
-function sync(root, command, apply, keep) {
+function sync(root, command, apply, keep, requestedE2e) {
   const previous = read(root, statePath);
   const state = previous === null ? { format: 1, version: '0.0.0', files: {} } : JSON.parse(previous);
   if (state.format !== 1 || !state.files || !/^\d+\.\d+\.\d+$/.test(state.version)) throw new Error('无法识别清单，请先检查其版本或恢复清单');
   if (version.localeCompare(state.version, 'en', { numeric: true }) < 0) throw new Error('当前工具早于已安装版本，请使用新版');
   if (command === 'update' && !previous) throw new Error('未初始化，请先运行 init');
   const changes = [];
+  const seeded = new Set(state.seeded ?? []);
+  const oldWorkflow = read(root, workflowPath);
+  if (oldWorkflow === null && seeded.has(workflowPath) && requestedE2e === undefined) throw new Error(`缺少 ${workflowPath}，请恢复文件或用 --e2e on|off 明确选择模式`);
+  const workflow = oldWorkflow === null ? { e2e: { enabled: previous !== null } } : parseWorkflow(oldWorkflow);
+  const enabled = requestedE2e ?? workflow.e2e.enabled;
+  if (oldWorkflow === null || enabled !== workflow.e2e.enabled) {
+    workflow.e2e.enabled = enabled;
+    changes.push({ name: workflowPath, old: oldWorkflow, next: encode(workflow), action: oldWorkflow === null ? 'seed' : 'configure' });
+  }
+  seeded.add(workflowPath);
+  console.log(`e2e.enabled=${enabled}（${enabled ? '开发 + E2E' : '仅开发'}）`);
   const files = {};
   let conflicts = 0;
-  for (const [name, src] of Object.entries({ ...managed, ...blocks })) {
+  for (const [name, src] of Object.entries({ ...managed, ...e2eManaged, ...blocks })) {
+    if (!enabled && Object.hasOwn(e2eManaged, name)) {
+      if (state.files[name]) files[name] = state.files[name];
+      continue;
+    }
     const old = read(root, name);
     const body = template(src);
     const { current, fresh, next } = Object.hasOwn(blocks, name) ? section(name, old, body) : { current: old, fresh: body, next: body };
@@ -114,8 +131,7 @@ function sync(root, command, apply, keep) {
     for (const change of removals) { changes.push(change); retired.delete(change.name); }
   }
   for (const name of retired) console.log(`retired (保留原文件，停止管理) ${name}`);
-  const seeded = new Set(state.seeded ?? []);
-  for (const [name, src] of Object.entries({ ...seeds, '.matt/workspace.json': null })) {
+  for (const [name, src] of Object.entries({ ...seeds, ...(enabled ? e2eSeeds : {}), '.matt/workspace.json': null })) {
     if (!seeded.has(name) && !existsSync(safePath(root, name))) changes.push({ name, old: null, next: src ? template(src) : encode(discover(root).config), action: 'seed' });
     seeded.add(name);
   }
@@ -129,16 +145,19 @@ function sync(root, command, apply, keep) {
     else atomicWrite(root, name, next);
   }
   console.log(`${apply ? 'applied' : 'preview'} ${version} changes=${changes.length}`);
+  return enabled;
 }
 
-export function install(root, command, apply, keep) {
-  if (!existsSync(safePath(root, statePath)) && discover(root).candidates.length < 2) throw new Error('首次安装需要在包含至少两个独立 Git 子仓库的共同父目录执行');
-  if (!apply) return sync(root, command, false, keep);
+export async function install(root, command, apply, keep, requestedE2e) {
+  const fresh = !existsSync(safePath(root, statePath));
+  if (fresh && discover(root).candidates.length < 2) throw new Error('首次安装需要在包含至少两个独立 Git 子仓库的共同父目录执行');
+  if (!apply) return sync(root, command, false, keep, requestedE2e);
+  if (fresh && command === 'init' && requestedE2e === undefined && !existsSync(safePath(root, workflowPath))) requestedE2e = await askE2e();
   const lock = safePath(root, '.matt/install.lock');
   mkdirSync(dirname(lock), { recursive: true });
   const fd = openSync(lock, 'wx');
   try {
     writeFileSync(fd, String(process.pid));
-    sync(root, command, true, keep);
+    return sync(root, command, true, keep, requestedE2e);
   } finally { closeSync(fd); unlinkSync(lock); }
 }
