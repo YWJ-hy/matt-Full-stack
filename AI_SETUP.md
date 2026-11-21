@@ -2,7 +2,7 @@
 
 首次接入或升级在共同父目录单开环境会话。项目是否使用 Midscene 由 `.matt/workflow.json` 的布尔值 `e2e.enabled` 决定。仅开发在第 1 节完成初始化；启用 E2E 还需第 2 节的 `setup` 返回 0。登录、真实业务服务和业务用例留给启用 E2E 的需求会话。
 
-**体验项目：** 创建脚本已按所选模式安装。仅开发可直接在父目录开需求会话：`$matt-full-stack 实现 REQUIREMENT.md 中的「客服领取工单」。` 选择 E2E 的体验项目已备好两端的 `selftest/` 夹具，先做第 2 节，无需启动工单应用。
+**体验项目：** 创建脚本已安装工具。两种模式都从第 1 节的「配置父目录的 Matt 工程约定」继续；选了 E2E 才需要第 2 节，两端的 `selftest/` 夹具已备好。
 
 ## 1. 确认边界，预览再安装
 
@@ -23,7 +23,17 @@ node $matt init
 
 `discover` 只看直接下属 Git 仓库（含 worktree）、根级包/锁/启动脚本及 README 的本地地址；输出是**候选**。只读核对技术栈和仓库指令，不搜索 `.env`、浏览器配置或历史凭据。`.matt/workspace.json` 的 URL 和启动命令留给业务验收，初始化时不访问、不执行，也不改写为夹具地址。已有两个空 Git 仓但技术栈尚未选定时，先请用户确认两端选型，不用示例栈代替。
 
-核对 `.matt/workspace.json` 中的前后端仓库；有歧义时请用户确认。用 `node .matt/runtime/sessions.mjs` 检查派单角色设置。**仅开发在此结束**：报告「开发派单就绪」，不询问视觉模型、不安装 E2E 依赖或浏览器、不创建夹具。日常交付遵循第 4 节的派单流程。
+核对 `.matt/workspace.json` 中的前后端仓库；有歧义时请用户确认。用 `node .matt/runtime/sessions.mjs` 检查派单角色设置。
+
+### 配置父目录的 Matt 工程约定（两种模式共用）
+
+在**两个业务仓库的共同父目录**检查原版 setup 的产物：`CLAUDE.md`（没有则看 `AGENTS.md`）的 `## Agent skills` 段，以及它引用的 `docs/agents/issue-tracker.md`、`docs/agents/domain.md`；使用 `triage` 时还需 `docs/agents/triage-labels.md`。读到本项目的工单归属和领域文档布局即可复用，不要求预先创建空术语表或 ADR。
+
+缺失或不完整时，请用户在**同一环境会话**显式发送 `$mattpocock-skills:setup-matt-pocock-skills`。这是交互式 skill，不是 shell 命令：先确认选择和草案，再写入父目录；保留已有内容，`## Agent skills` 放在 `matt-full-stack` 受管标记之外。不要到工具包、前端或后端重复运行。若宿主没有该 skill，提示启用原版插件后继续，不能把 `init --apply` 或 Midscene 自测当作替代。
+
+父目录没有 Git 仓库时，推荐使用父目录的本地 Markdown 工单（`.scratch/`），无需 `git init`。若选择 GitHub/GitLab，由用户确认用于全栈工单的远程仓库及必要的 Git/标签操作；不默认借用子仓 remote。工单可链接 `spec/<需求>.md`，两端仍以同一份公共契约为准。
+
+父目录约定齐备后，**仅开发在此结束**：报告「开发派单就绪」，不准备模型、浏览器或夹具。启用 E2E 则继续第 2 节。
 
 ## 2. 仅在启用 E2E 时准备 Midscene 运行环境
 
@@ -114,6 +124,8 @@ node .matt/runtime/sessions.mjs spec --models .matt/private/另一工具.json
 父会话执行 `.agents/skills/matt-full-stack/SKILL.md`。此时才核实 `.matt/workspace.json` 的业务测试地址与版本，启动授权的测试服务；`doctor` 检查这两个地址和 Chromium，`nodes` 生成编写 YAML 用的节点清单。单文件运行 `node .matt/runtime/run.mjs test e2e/cases/<场景>.yaml`，全量运行 `node .matt/runtime/run.mjs test`。以退出码、原生 summary/HTML、具体 case 与预期对应关系为证据。`.matt/reports/<运行ID>/receipt.json` 记录本地 checkout SHA 和 dirty 状态；**不是**已部署版本证明。核对服务构建标识或启动记录、真实账号/后端与合成数据，记录在 `spec/<需求>.md`；任何缺项标为未验证/阻塞。工具返回零不自动签收。注意数据清理、测试幂等和不同角色隔离。
 
 ## 5. 升级、切换模式与冲突
+
+升级后按第 1 节检查父目录的 Matt 约定：旧项目缺失时补做一次，已有配置不因升级或切换 E2E 而重建。
 
 升级保留项目的 `e2e.enabled`；1.6 及更早的工作区首次升级时沿用原行为（`true`）。要切换，在共同父目录运行 `node $matt update --e2e off` 预览，再加 `--apply`；启用用 `--e2e on`。这会保存选择并按需补齐工具文件，不用重建工作区。关闭不会删除已有用例、登录适配、凭据或报告；再次开启后按第 2 节完成初始化。若手工编辑 `.matt/workflow.json`，请再运行 `update --apply` 同步对应文件。
 

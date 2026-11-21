@@ -11,11 +11,17 @@ node examples/create-workspace.mjs ../matt-ticket-demo --e2e off
 cd ../matt-ticket-demo
 ```
 
-`--e2e off` 只体验开发。脚本为两端创建独立 Git 仓库、安装派单工具并放入体验需求。**直接跳到第 3 节**，不需要 Midscene 模型、浏览器或 E2E 用例。要体验 E2E，在新目录用 `--e2e on` 创建，脚本才会放入浏览器基线用例和隔离夹具；交互终端省略选项会询问模式。
+脚本为两端创建独立 Git 仓库、安装派单工具并放入体验需求。`--e2e off` 不需要 Midscene 模型或浏览器。要体验 E2E，在新目录用 `--e2e on` 创建，脚本才会放入浏览器基线用例和隔离夹具；交互终端省略选项会询问模式。
 
-## 2. 仅启用 E2E：开一个环境会话
+## 2. 在体验父目录初始化
 
-用 AI 开发工具打开 **`matt-ticket-demo` 父目录**。脚本已经安装了工具包；在第一个会话中发送：
+用 AI 开发工具打开 **`matt-ticket-demo` 父目录**，在环境会话中发送：
+
+> `$mattpocock-skills:setup-matt-pocock-skills` 为这个共同父目录配置共享工程约定。
+
+体验项目没有父层 Git 仓库，工单可选本地 Markdown。确认草案并完成 setup 后，**仅开发直接到第 3 节**。
+
+**仅启用 E2E**：在同一环境会话继续发送：
 
 > 请按 `.matt/AI_SETUP.md` 初始化 Midscene E2E 环境，向我询问缺少的模型配置，验证模型和隔离链路。
 

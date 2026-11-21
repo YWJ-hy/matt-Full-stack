@@ -18,6 +18,9 @@ try {
   else if (['init', 'update'].includes(command)) {
     if (root === realpathSync(source)) throw new Error('请选择消费工作区的父目录');
     const enabled = await install(root, command, !!values.apply, new Set(values.keep), parseE2eOption(values.e2e));
-    if (values.apply) console.log(enabled ? '工具文件已同步；请在环境会话按 .matt/AI_SETUP.md 补齐模型配置并运行 setup，验证 Midscene E2E 环境。' : '仅开发：请核对前后端仓库与会话设置，即可用 $matt-full-stack 派单。');
+    if (values.apply) {
+      console.log('工具文件已同步。请在共同父目录按 .matt/AI_SETUP.md 核对共享工程约定；已有配置直接复用，缺失时在环境会话中发送 $mattpocock-skills:setup-matt-pocock-skills。');
+      if (enabled) console.log('父目录约定就绪后，补齐模型配置并运行 Midscene setup，验证模型和隔离链路。');
+    }
   } else throw new Error(`未知命令 ${command}`);
 } catch (error) { console.error(error.message); process.exitCode = 1; }

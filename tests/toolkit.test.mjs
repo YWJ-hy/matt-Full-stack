@@ -9,6 +9,30 @@ import { get, put, repo, run, snapshot, temp } from './helpers.mjs';
 
 const cli = (cwd, args, status = 0, release = source) => run(cwd, process.execPath, [join(release, 'bin/matt.mjs'), ...args], status);
 
+test('两种模式都在父目录交接 Matt setup；升级保留共享约定，各角色从独立目录也能定位它', () => {
+  const work = temp('parent-matt-');
+  const ui = repo(work, 'ui', true), api = repo(work, 'api', false);
+  for (const dir of [ui, api]) snapshot(dir);
+  const docs = ['docs/agents/issue-tracker.md', 'docs/agents/domain.md'];
+  const setup = '$mattpocock-skills:setup-matt-pocock-skills';
+  assert.ok(cli(work, ['init', '--e2e', 'off', '--apply']).includes(setup));
+  for (const path of docs) assert.ok(!existsSync(join(work, path)));
+  for (const path of docs) put(work, path, `workspace convention: ${path}`);
+  const block = '\n## Agent skills\n' + docs.join('\n') + '\n';
+  put(work, 'AGENTS.md', get(work, 'AGENTS.md') + block);
+  assert.ok(cli(work, ['update', '--e2e', 'on', '--apply']).includes(setup));
+  const checkout = join(temp('implementation-'), 'worktree');
+  run(ui, 'git', ['worktree', 'add', '--detach', checkout, 'HEAD']);
+  const plans = JSON.parse(run(checkout, process.execPath, [join(work, '.matt/runtime/sessions.mjs')]));
+  for (const role of ['frontend', 'backend', 'standards', 'spec']) {
+    assert.equal(plans[role].workspaceRoot, work);
+    for (const path of docs) assert.equal(get(plans[role].workspaceRoot, path), `workspace convention: ${path}`);
+  }
+  assert.ok(get(work, 'AGENTS.md').endsWith(block));
+  assert.ok(!existsSync(join(work, '.git')));
+  for (const dir of [ui, api]) assert.equal(run(dir, 'git', ['status', '--porcelain']), '');
+});
+
 test('仅开发：不安装 E2E 资产，仍可派单；预览和切换模式不丢项目文件', () => {
   const work = join(temp('dispatch-'), 'demo');
   run(source, process.execPath, ['examples/create-workspace.mjs', work, '--e2e', 'off']);

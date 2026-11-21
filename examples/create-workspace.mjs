@@ -31,9 +31,8 @@ async function create() {
     mkdirSync(join(workspace, 'e2e/cases'), { recursive: true });
     cpSync(join(examples, 'baseline.yaml'), join(workspace, 'e2e/cases/ticket-list.yaml'));
     cpSync(join(examples, 'login.mjs'), join(workspace, 'e2e/login.mjs'));
-    console.log(`在 ${workspace} 打开环境会话：请按 .matt/AI_SETUP.md 初始化 Midscene E2E，向我询问缺少的模型配置，验证模型和隔离链路。`);
   }
-  console.log(`${enabled ? 'setup 通过后，' : ''}在 ${workspace} 新开需求会话：$matt-full-stack 实现 REQUIREMENT.md 中的「客服领取工单」。`);
+  console.log(`在 ${workspace} 完成上述环境步骤后，新开需求会话：$matt-full-stack 实现 REQUIREMENT.md 中的「客服领取工单」。`);
 }
 
 try { await create(); } catch (error) { console.error(error.message); process.exitCode = 1; }

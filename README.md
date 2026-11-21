@@ -4,11 +4,13 @@
 
 按同一份需求和接口契约向两个独立项目派单，按项目选择是否做浏览器验收。工具装在**共同父目录**，不接管子仓。
 
-**首次接入**：在共同父目录单开环境会话：「请按 [AI_SETUP.md](AI_SETUP.md) 初始化，仅开发。」首次未指定时会询问一次，选择保存在 `.matt/workflow.json`。`e2e.enabled: false` 不需要模型、浏览器、E2E 用例或组合验收；两端仍须按契约测试和审查。选 `true` 则在初始化时问齐模型配置，验证模型和隔离链路后才就绪。以后可用 `update --e2e on|off --apply` 切换；旧项目升级不指定模式时保留 E2E。
+**首次接入**：在前后端的共同父目录单开环境会话：「请按 [AI_SETUP.md](AI_SETUP.md) 初始化，仅开发。」`matt init` 安装派单工具；随后在**同一父目录**按提示显式运行一次 `$mattpocock-skills:setup-matt-pocock-skills`，确认两端共用的工单和领域文档约定。已有父层配置直接复用，不在子仓重复初始化。
+
+**可选 E2E**：首次未指定模式时会询问一次，选择保存在 `.matt/workflow.json`。仅开发不需要 Midscene 模型或浏览器；启用 E2E 还需验证模型和隔离链路。以后可用 `update --e2e on|off --apply` 切换，不影响 Matt 工程约定。
 
 **日常开发**：环境就绪后，在同一父目录新开需求会话，例如：`$matt-full-stack 让客服能在工单列表领取待处理工单，刷新后仍能看到处理人。`
 
-**第一次体验**：在工具包根目录执行 `node examples/create-workspace.mjs ../matt-ticket-demo --e2e off`，在新父目录开需求会话实现[客服领取工单](examples/REQUIREMENT.md)。想同时体验浏览器验收，创建时选 `--e2e on`，先按[体验指南](examples/README.md)验证环境。
+**第一次体验**：在工具包根目录执行 `node examples/create-workspace.mjs ../matt-ticket-demo --e2e off`（需要浏览器验收则选 `on`）。按[体验指南](examples/README.md)在新父目录完成初始化，再开需求会话实现[客服领取工单](examples/REQUIREMENT.md)。
 
 | 入口 | 作用 |
 |---|---|

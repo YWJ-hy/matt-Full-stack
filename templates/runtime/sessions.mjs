@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 const roles = ['frontend', 'backend', 'standards', 'spec'];
-const workspace = fileURLToPath(new URL('../../', import.meta.url));
+const workspace = resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
 function object(value, label, allowed) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label} 需要 JSON 对象`);
@@ -47,7 +47,7 @@ function plan() {
       if (!alias || !validModel(resolved) || resolved.startsWith('@') || resolved === 'inherit') throw new Error(`请为 ${role} 的 ${model} 映射当前工具支持的模型 ID`);
     }
     const review = role === 'standards' || role === 'spec';
-    result[role] = { role, model: resolved, worktree, repository: review ? 'implementation' : role, access: review ? 'read-only' : 'implementation', freshContext: review };
+    result[role] = { role, model: resolved, worktree, workspaceRoot: workspace, repository: review ? 'implementation' : role, access: review ? 'read-only' : 'implementation', freshContext: review };
   }
   return selected ? result[selected] : result;
 }
