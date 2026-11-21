@@ -1,8 +1,8 @@
 # AI 实施手册
 
-用户想先体验整个流程时，请从上游工具包的 `examples/README.md` 开始，用 `examples/create-workspace.mjs` 生成独立体验工作区，然后在新父目录按 `REQUIREMENT.md` 派单。工单台提供本机体验登录与可立即执行的列表基线。
+首次接入或升级在共同父目录单开环境会话。将核实过的服务地址和启动方式留在 `.matt/workspace.json`，交接基线结果和本地报告位置；没跑通的前提注明阻塞。环境会话到此结束，不派发产品需求。
 
-**一句启动提示：**「请按 matt-Full-stack 的 AI_SETUP.md，在当前前后端共同父目录初始化或升级，自动发现并验证环境；只有账号、密钥或无法推断的业务决定再找我。」
+**体验项目：** 上游工具包的 `examples/create-workspace.mjs` 已在生成工作区时安装工具包。环境会话从第 2 节准备运行环境，再验证 `e2e/cases/ticket-list.yaml`（`BASE-01`）。通过后在同一父目录新开需求会话：`$matt-full-stack 实现 REQUIREMENT.md 中的「客服领取工单」。`
 
 ## 1. 确认边界，预览再安装
 

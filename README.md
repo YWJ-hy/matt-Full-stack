@@ -4,9 +4,11 @@
 
 把两个独立项目接到同一份需求、接口契约与浏览器验收上。工具装在**共同父目录**，不接管子仓；不要求发布包、改造现有工程或合并 Git 历史。
 
-**交给 AI：**「请按这个工具包的 [AI_SETUP.md](AI_SETUP.md)，在当前前后端共同父目录初始化或升级，自动发现并验证环境。」
+**首次接入或升级**：在共同父目录单开环境会话：「请按这个工具包的 [AI_SETUP.md](AI_SETUP.md) 初始化或升级，并验证环境。」
 
-**第一次体验**可以从客服工单台开始。在工具包根目录执行 `node examples/create-workspace.mjs ../matt-ticket-demo`，然后在新目录打开父会话，把 `REQUIREMENT.md` 交给 AI。示例提供能运行的前后端、两张合成工单和「客服领取工单」需求。[体验指南](examples/README.md) · [需求与验收场景](examples/REQUIREMENT.md)
+**日常开发**：环境就绪后，在同一父目录新开需求会话，例如：`$matt-full-stack 让客服能在工单列表领取待处理工单，刷新后仍能看到处理人。`
+
+**第一次体验**可以从客服工单台开始。在工具包根目录执行 `node examples/create-workspace.mjs ../matt-ticket-demo`，然后按[体验指南](examples/README.md)先验证能看到两张工单，再开需求会话实现[客服领取工单](examples/REQUIREMENT.md)。
 
 | 入口 | 作用 |
 |---|---|

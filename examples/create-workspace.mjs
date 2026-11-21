@@ -25,7 +25,8 @@ function create() {
   cpSync(join(examples, 'REQUIREMENT.md'), join(workspace, 'REQUIREMENT.md'));
   cpSync(join(examples, 'baseline.yaml'), join(workspace, 'e2e/cases/ticket-list.yaml'));
   cpSync(join(examples, 'login.mjs'), join(workspace, 'e2e/login.mjs'));
-  console.log(`请在 ${workspace} 打开父会话并发送：请按 $matt-full-stack 完成 REQUIREMENT.md，先验证工单列表基线，再分别派发前后端并验收。`);
+  console.log(`在 ${workspace} 打开环境会话：请按 .matt/AI_SETUP.md 准备体验环境，跑通 e2e/cases/ticket-list.yaml 的工单列表基线。`);
+  console.log('基线通过后，在同一父目录新开需求会话：$matt-full-stack 实现 REQUIREMENT.md 中的「客服领取工单」。');
 }
 
 try { create(); } catch (error) { console.error(error.message); process.exitCode = 1; }
