@@ -11,10 +11,12 @@ description: 在独立前后端仓库的共同父目录协调排障、修复、�
 
 > 手动入口：若用户要运行原版 `$mattpocock-skills:grill-with-docs` 或 `$mattpocock-skills:implement`，请用户分别在父会话或本端会话亲自发送该命令，待交付后再继续。其他仅限用户触发的技能同理；子会话提示词或读取副本不算启动原版。
 
+请求带工单或项目要求跟踪时，父会话先按[工单交接](references/issues.md)确认来源，再把同一完整引用带入本次交付。没有引用且项目未要求工单，直接用本地 spec 或故障预期，不为派单建工单。
+
 - **已有行为异常**：用户直接报告故障、要求只排查或排查并修复，走下方「排障」，不先写功能 spec 或猜责任端。
 - **新功能或行为变更**：进入「功能交付流程」，复用已有决定；用户指定的方法随单传给实现会话。
 - **只验收已有版本**：`e2e.enabled: true` 时执行功能流程第 5 步，交付结果即停；只有用户也要求修复才将失败转入排障。关闭时说明未启用，不自行切换模式。
-- **独立交付物**：调研结论用 `$mattpocock-skills:research`，一次性原型用 `$mattpocock-skills:prototype`，审查改动按[审查分流](references/review.md)选提交或补丁，PR 正文用 `$mattpocock-skills:pr`。交付即停；审查不是修复授权。需要委派时传该任务自己的范围与交付物，不套实现单。
+- **独立交付物**：调研结论用 `$mattpocock-skills:research`，一次性原型用 `$mattpocock-skills:prototype`，审查改动按[审查分流](references/review.md)先确定仓库和比较基线，再选提交或补丁，PR 正文用 `$mattpocock-skills:pr`。交付即停；审查不是修复授权。需要委派时传该任务自己的范围与交付物，不套实现单。
 
 `e2e.enabled` 取自共同父目录 `.matt/workflow.json`；需要判定 E2E 模式时若缺失或不是布尔值，请环境会话修复，不猜测。
 

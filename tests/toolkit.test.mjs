@@ -1,7 +1,7 @@
 import test from 'node:test';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, realpathSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { source, version } from '../src/release.mjs';
 import { skillSources } from '../src/matt-skills.mjs';
@@ -9,24 +9,28 @@ import { get, put, repo, run, snapshot, temp } from './helpers.mjs';
 
 const cli = (cwd, args, status = 0, release = source) => run(cwd, process.execPath, [join(release, 'bin/matt.mjs'), ...args], status);
 
-test('两种模式都在父目录交接 Matt setup；升级保留共享约定，各角色从独立目录也能定位它', () => {
+test('两种模式保留父层约定；独立工作树各角色按完整引用读取父层工单，而非子仓同号单', () => {
   const work = temp('parent-matt-');
   const ui = repo(work, 'ui', true), api = repo(work, 'api', false);
-  for (const dir of [ui, api]) snapshot(dir);
+  const ticket = '.scratch/claim/issues/123-claim.md';
+  for (const dir of [ui, api]) { put(dir, ticket, `#123 in ${basename(dir)}`); snapshot(dir); }
   const docs = ['docs/agents/issue-tracker.md', 'docs/agents/domain.md'];
   const setup = '$mattpocock-skills:setup-matt-pocock-skills';
   assert.ok(cli(work, ['init', '--e2e', 'off', '--apply']).includes(setup));
   for (const path of docs) assert.ok(!existsSync(join(work, path)));
   for (const path of docs) put(work, path, `workspace convention: ${path}`);
+  put(work, ticket, '#123 领取后刷新保留处理人');
   const block = '\n## Agent skills\n' + docs.join('\n') + '\n';
   put(work, 'AGENTS.md', get(work, 'AGENTS.md') + block);
   assert.ok(cli(work, ['update', '--e2e', 'on', '--apply']).includes(setup));
   const checkout = join(temp('implementation-'), 'worktree');
   run(ui, 'git', ['worktree', 'add', '--detach', checkout, 'HEAD']);
   const plans = JSON.parse(run(checkout, process.execPath, [join(work, '.matt/runtime/sessions.mjs')]));
+  assert.equal(get(checkout, ticket), '#123 in ui');
   for (const role of ['frontend', 'backend', 'standards', 'spec']) {
     assert.equal(plans[role].workspaceRoot, work);
     for (const path of docs) assert.equal(get(plans[role].workspaceRoot, path), `workspace convention: ${path}`);
+    assert.equal(get(plans[role].workspaceRoot, ticket), '#123 领取后刷新保留处理人');
   }
   assert.ok(get(work, 'AGENTS.md').endsWith(block));
   assert.ok(!existsSync(join(work, '.git')));
@@ -153,6 +157,8 @@ test('新建工作区只注册父工作流，随包 skill 及引用完整，其�
   const prompts = get(work, `${skills}/matt-full-stack/references/dispatch.md`);
   const review = get(work, `${skills}/matt-full-stack/references/review.md`);
   assert.ok(router.includes('(references/review.md)') && prompts.includes('(review.md)'));
+  assert.ok(router.includes('(references/issues.md)') && review.includes('(issues.md)'));
+  assert.equal(get(work, `${skills}/matt-full-stack/references/issues.md`), get(source, 'templates/matt-full-stack/references/issues.md'));
   const skillNames = text => new Set([...text.matchAll(/\$mattpocock-skills:([a-z-]+)/g)].map(match => match[1]));
   const names = skillNames(`${router}\n${prompts}\n${review}`);
   const automatic = skillNames([router, prompts, review].join('\n').split('\n').filter(line => !line.startsWith('> 手动入口：')).join('\n'));
@@ -166,6 +172,40 @@ test('新建工作区只注册父工作流，随包 skill 及引用完整，其�
   }
   for (const name of ['research', 'prototype', 'pr']) assert.ok(router.includes(`$mattpocock-skills:${name}`), name);
   assert.deepEqual(readdirSync(join(work, skills)), ['matt-full-stack']);
+});
+
+test('独立审查：按安装指南在指定仓解析同名 main，补丁和提交使用本仓分支点', () => {
+  const work = temp('standalone-review-');
+  const ui = repo(work, 'client app', true), api = repo(work, 'service', false);
+  cli(work, ['init', '--apply', '--e2e', 'off']);
+  const config = JSON.parse(get(work, '.matt/workspace.json'));
+  const guide = get(work, '.agents/skills/matt-full-stack/references/review.md');
+  const commands = [...guide.matchAll(/`git -C "<checkout>" ([^`]+)`/g)].map(match => match[1].replaceAll('"', '').split(' '));
+  const origins = [];
+  for (const [role, dir] of [['frontend', ui], ['backend', api]]) {
+    snapshot(dir);
+    const git = (...args) => run(dir, 'git', args).trim();
+    git('branch', '-M', 'main');
+    const origin = git('rev-parse', 'HEAD'); origins.push(origin);
+    git('branch', 'feature');
+    put(dir, 'main-only', role); snapshot(dir);
+    const main = git('rev-parse', 'HEAD');
+    git('checkout', '-q', 'feature');
+    put(dir, `${role}-only`, role); snapshot(dir);
+    const head = git('rev-parse', 'HEAD');
+    const checkout = join(work, config[role].repo);
+    const params = { '<基线ref>^{commit}': 'main^{commit}', '<基线SHA>': main, '<待审SHA>': head };
+    const invoke = key => run(work, 'git', ['-C', checkout, ...commands.find(args => args.includes(key)).map(arg => params[arg] ?? arg)]).trim();
+    assert.equal(realpathSync(invoke('--show-toplevel')), realpathSync(dir));
+    assert.equal(invoke('--verify'), main);
+    const base = invoke('merge-base');
+    assert.equal(base, origin);
+    assert.equal(git('diff', '--name-only', `${base}...${head}`), `${role}-only`);
+    put(dir, `${role}-only`, `${role} WIP`);
+    assert.equal(git('diff', '--name-only', base), `${role}-only`);
+  }
+  assert.notEqual(origins[0], origins[1]);
+  assert.ok(!existsSync(join(work, '.git')));
 });
 
 test('补丁审查：按安装指南获取最终差异，在基线 checkout 还原本单而不夹带其他改动', () => {
