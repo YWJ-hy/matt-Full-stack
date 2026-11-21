@@ -89,9 +89,15 @@ node .matt/runtime/sessions.mjs spec --models .matt/private/另一工具.json
 
 命令输出可供任意会话工具读取的 JSON。派发者使用宿主实际提供的模型选择、工作目录、工作树及权限机制，并按派单模板回报结果。只能手动开会话的工具也可以使用同一份输出开会话并粘贴派单。模型不可用或无法满足隔离时标记待派发，由使用者选择合适的工具或调整配置。
 
-### 执行验收
+### 选择父会话工作流
 
-每个新需求在父会话中启动：「请用 `$matt-full-stack` 完成〈需求〉，按公共 spec 派发前后端，最后验收实际组合。」父会话按流程 skill 调用 `grill-with-docs`。派单取 `.agents/skills/matt-full-stack/references/dispatch.md` 的公共正文和对应角色段。每个子会话都收到完整的 `$mattpocock-skills:implement` 调用、TDD 边界和 review 基线。优先使用宿主已安装的插件。缺少该入口时，随派单提供上游工具包 `vendor/mattpocock/<短名>/SKILL.md` 的可读绝对路径。失败回派时保留原会话引用和运行版本对。
+在共同父目录调用 `$matt-full-stack`，说明需要什么交付物即可。例如：
+
+- 「只调研工单并发领取方案，不改产品代码。」父会话交付调研结论，不派实现单。若宿主缺少 `research` 且工具包无本地参考，说明缺失并停止。
+- 「只修后端，按已确认的契约返回 409。」只向后端派 `implement`，沿用 TDD 和审查流程；联调可使用未改动的前端版本。
+- 「只验收当前版本的领取工单场景。」直接核对版本、运行已有 case 并报告结果；失败也不自动派修复。
+
+### 执行验收
 
 父会话执行 `.agents/skills/matt-full-stack/SKILL.md`。单文件运行 `node .matt/runtime/run.mjs test e2e/cases/<场景>.yaml`，全量运行 `node .matt/runtime/run.mjs test`。以退出码、原生 summary/HTML、具体 case 与预期对应关系为证据。`.matt/reports/<运行ID>/receipt.json` 记录本地 checkout SHA 和 dirty 状态；**不是**已部署版本证明。核对服务构建标识或启动记录、真实账号/后端与合成数据，记录在 `spec/<需求>.md`；任何缺项标为未验证/阻塞。工具返回零不自动签收。注意数据清理、测试幂等和不同角色隔离。
 

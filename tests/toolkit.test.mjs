@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, readdirSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { source, version } from '../src/release.mjs';
+import { skillSources } from '../src/matt-skills.mjs';
 import { get, put, repo, run, snapshot, temp } from './helpers.mjs';
 
 const cli = (cwd, args, status = 0, release = source) => run(cwd, process.execPath, [join(release, 'bin/matt.mjs'), ...args], status);
@@ -35,18 +36,21 @@ test('按角色生成会话计划，切换工具映射并拒绝无效配置', ()
   }
 });
 
-test('新建工作区只注册一个流程 skill，各插件调用可通过上游参考解析', () => {
+test('新建工作区只注册父工作流，随包 skill 及引用完整，其他工作流使用宿主入口', () => {
   const work = temp('skills-'); repo(work, 'ui', true); repo(work, 'api', false);
   cli(work, ['init', '--apply']);
   const skills = '.agents/skills';
   const router = get(work, `${skills}/matt-full-stack/SKILL.md`);
   const prompts = get(work, `${skills}/matt-full-stack/references/dispatch.md`);
   const names = new Set([...`${router}\n${prompts}`.matchAll(/\$mattpocock-skills:([a-z-]+)/g)].map(match => match[1]));
-  for (const name of ['grill-with-docs', 'grilling', 'domain-modeling', 'implement', 'tdd', 'code-review', 'diagnosing-bugs', 'codebase-design']) assert.ok(names.has(name), name);
-  for (const name of names) {
+  for (const [directory, files] of Object.entries(skillSources)) {
+    const name = basename(directory);
+    assert.ok(names.has(name), name);
+    for (const file of files) assert.ok(existsSync(join(source, 'vendor/mattpocock', name, file)), `${name}/${file}`);
     const reference = get(source, `vendor/mattpocock/${name}/SKILL.md`);
     for (const link of reference.matchAll(/\[[^\]]+\]\(([\w./-]+\.md)\)/g)) assert.ok(existsSync(join(source, 'vendor/mattpocock', name, link[1])), `${name}/${link[1]}`);
   }
+  for (const name of ['research', 'prototype', 'pr']) assert.ok(router.includes(`$mattpocock-skills:${name}`), name);
   assert.deepEqual(readdirSync(join(work, skills)), ['matt-full-stack']);
 });
 
@@ -105,6 +109,7 @@ test('旧版升级：预览无写入，冲突整批停止，保留合并和项�
   for (const entry of ['bin', 'src', 'vendor', 'templates', 'AI_SETUP.md']) cpSync(join(source, entry), join(older, entry), { recursive: true, filter: path => basename(path) !== 'node_modules' });
   put(older, 'package.json', { version: '0.9.0', type: 'module' });
   put(older, 'AI_SETUP.md', '旧手册'); put(older, 'templates/model.env.example', '旧模板');
+  put(older, 'templates/matt-full-stack/SKILL.md', '旧流程'); put(older, 'templates/instructions.md', '旧入口');
   const work = temp('upgrade-'); repo(work, 'ui', true); repo(work, 'api', false);
   cli(work, ['init', '--apply'], 0, older);
   const local = '.matt/AI_SETUP.md'; put(work, local, '本地合并的手册');
@@ -120,6 +125,8 @@ test('旧版升级：预览无写入，冲突整批停止，保留合并和项�
   assert.equal(JSON.parse(get(work, '.matt/manifest.json')).version, version);
   assert.equal(get(work, local), '本地合并的手册');
   assert.equal(get(work, '.matt/model.env.example'), get(source, 'templates/model.env.example'));
+  assert.equal(get(work, '.agents/skills/matt-full-stack/SKILL.md'), get(source, 'templates/matt-full-stack/SKILL.md'));
+  assert.ok(get(work, 'AGENTS.md').includes(get(source, 'templates/instructions.md').trimEnd()));
   assert.match(get(work, 'AGENTS.md'), /^原有[\s\S]*尾部\n$/);
   for (const path of assets) assert.equal(get(work, path), `local: ${path}`);
   assert.match(cli(work, ['update', '--apply']), /changes=0/);
