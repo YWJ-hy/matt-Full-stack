@@ -17,9 +17,26 @@ cd ../matt-ticket-demo
 
 用 AI 开发工具打开 **`matt-ticket-demo` 父目录**。脚本已经安装了工具包；在第一个会话中发送：
 
-> 请按 `.matt/AI_SETUP.md` 准备体验环境，跑通 `e2e/cases/ticket-list.yaml` 的工单列表基线。
+> 请按 `.matt/AI_SETUP.md` 准备环境，只运行前后端隔离夹具的自测。
 
-`doctor` 检查通过、浏览器基线 `BASE-01` 通过就结束这个会话。此时能看到两张工单：`QA-101` 待领取，`QA-102` 由客服乙处理，还没有领取按钮。基线未通过就在环境会话排查，不开始实现需求。
+环境会话只启动 `frontend/selftest/` 下的 Vite 测试页和 `backend/selftest/` 下的 Express 内存接口。`ENV-01` 验证浏览器能通过前端代理显示本次后端标记；通过就停止两个夹具、交接报告。不启动工单服务、不登录、不读写数据库。失败时排查夹具，不开始实现需求。
+
+**手动复现环境自测**（命令均在体验父目录运行，PowerShell 必要时用 `npm.cmd`）：
+
+```sh
+npm ci --prefix backend --ignore-scripts
+npm ci --prefix frontend --ignore-scripts
+npm ci --prefix .matt/runtime --ignore-scripts --no-audit --no-fund
+node .matt/runtime/run.mjs chromium
+```
+
+在两个终端分别运行 `node backend/selftest/server.mjs 4274` 和 `node frontend/selftest/server.mjs 4273 4274`。确认两端启动成功，在第三个终端运行：
+
+```sh
+node .matt/runtime/run.mjs selftest 4273 4274
+```
+
+报告在 `.matt/reports/selftest-*/`。若端口已占用，换两个空闲端口并同步修改三条命令；完成后用 Ctrl+C 停止两个夹具。
 
 ## 3. 日常开发：另开一个需求会话
 
@@ -29,20 +46,11 @@ cd ../matt-ticket-demo
 
 日常也可以直接描述需求，不必先写需求文件。技能会查找页面和接口，只向你确认无法推断的业务决定，再按公共契约向需要改动的端分别派单。完成后看每个场景的真实浏览器验收结果和报告位置：例如领取 `QA-101` 后刷新，仍应显示「处理中 · 体验客服」。
 
-## 4. 查看页面与验证记录
+## 4. 仅在业务会话中查看工单与验证记录
 
 服务运行时，在浏览器打开 `http://127.0.0.1:4173/`，点「以体验客服身份登录」。浏览器用例通过前端代理向本机后端建立同一角色的会话。重启后端会重置数据和会话，适合重新演练。基线使用 DOM 断言，模型调用为零。新增验收用例若使用视觉模型，按父目录手册配置模型凭据，或让 AI 编写确定性的浏览器交互与断言。
 
-如需手动复现，可在体验父目录运行以下准备命令。Windows PowerShell 如果限制执行 `npm.ps1`，把 `npm` 写成 `npm.cmd`。
-
-```sh
-npm ci --prefix backend
-npm ci --prefix frontend
-npm ci --prefix .matt/runtime --ignore-scripts --no-audit --no-fund
-node .matt/runtime/run.mjs chromium
-```
-
-打开两个终端，均位于体验父目录，一个运行 `npm run dev --prefix backend`，另一个运行 `npm run dev --prefix frontend`。保留两个服务，在第三个终端运行以下命令。
+如需在业务阶段手动复现，打开两个终端，均位于体验父目录，一个运行 `npm run dev --prefix backend`，另一个运行 `npm run dev --prefix frontend`。保留两个服务，在第三个终端运行以下命令。
 
 ```sh
 node .matt/runtime/run.mjs doctor

@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<title>前后端环境自测</title>
+<output data-matt-marker>等待内存后端响应</output>
+<script type="module">
+  const response = await fetch('/__matt_selftest/marker' + location.search, { cache: 'no-store' });
+  if (response.ok) document.querySelector('output').textContent = (await response.json()).marker;
+</script>
+</html>

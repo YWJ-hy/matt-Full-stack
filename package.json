@@ -1,8 +1,8 @@
 {
   "name": "matt-full-stack",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "engines": { "node": ">=22.12.0" },
-  "scripts": { "test": "node --test tests/toolkit.test.mjs", "test:browser": "node tests/browser.mjs" }
+  "scripts": { "test": "node --test tests/toolkit.test.mjs", "test:browser": "node tests/browser.mjs", "test:selftest": "node tests/selftest.mjs" }
 }

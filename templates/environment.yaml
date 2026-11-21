@@ -1,6 +1,0 @@
-cases:
-  - name: 环境冒烟：前端首页可在浏览器中打开（非业务验收）
-    steps:
-      - app.open: /
-      - app.visible:
-          selector: body

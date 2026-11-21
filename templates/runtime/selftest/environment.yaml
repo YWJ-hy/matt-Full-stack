@@ -1,0 +1,4 @@
+cases:
+  - name: ENV-01 浏览器通过隔离前端读回本次内存后端标记（非业务验收）
+    steps:
+      - fixture.readMarker: {}

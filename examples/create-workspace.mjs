@@ -23,10 +23,11 @@ function create() {
   const cli = fileURLToPath(new URL('../bin/matt.mjs', import.meta.url));
   execFileSync(process.execPath, [cli, 'init', '--apply'], { cwd: workspace, stdio: 'inherit' });
   cpSync(join(examples, 'REQUIREMENT.md'), join(workspace, 'REQUIREMENT.md'));
+  mkdirSync(join(workspace, 'e2e/cases'), { recursive: true });
   cpSync(join(examples, 'baseline.yaml'), join(workspace, 'e2e/cases/ticket-list.yaml'));
   cpSync(join(examples, 'login.mjs'), join(workspace, 'e2e/login.mjs'));
-  console.log(`在 ${workspace} 打开环境会话：请按 .matt/AI_SETUP.md 准备体验环境，跑通 e2e/cases/ticket-list.yaml 的工单列表基线。`);
-  console.log('基线通过后，在同一父目录新开需求会话：$matt-full-stack 实现 REQUIREMENT.md 中的「客服领取工单」。');
+  console.log(`在 ${workspace} 打开环境会话：请按 .matt/AI_SETUP.md 准备环境，只运行前后端隔离夹具的 selftest。`);
+  console.log('ENV-01 通过后，在同一父目录新开需求会话：$matt-full-stack 实现 REQUIREMENT.md 中的「客服领取工单」。');
 }
 
 try { create(); } catch (error) { console.error(error.message); process.exitCode = 1; }

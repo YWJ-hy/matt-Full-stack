@@ -1,8 +1,8 @@
 # AI 实施手册
 
-首次接入或升级在共同父目录单开环境会话。将核实过的服务地址和启动方式留在 `.matt/workspace.json`，交接基线结果和本地报告位置；没跑通的前提注明阻塞。环境会话到此结束，不派发产品需求。
+首次接入或升级在共同父目录单开环境会话，只验证 **浏览器 → 项目技术栈的测试前端 → HTTP → 内存测试后端**。已有业务和全新项目走同一条隔离路径。第 2 节通过或记录阻塞后结束会话；登录、真实业务服务和业务用例留给需求会话。
 
-**体验项目：** 上游工具包的 `examples/create-workspace.mjs` 已在生成工作区时安装工具包。环境会话从第 2 节准备运行环境，再验证 `e2e/cases/ticket-list.yaml`（`BASE-01`）。通过后在同一父目录新开需求会话：`$matt-full-stack 实现 REQUIREMENT.md 中的「客服领取工单」。`
+**体验项目：** `examples/create-workspace.mjs` 已安装工具包，并在两端的 `selftest/` 中备好 Vite 和 Express 夹具。从第 2 节开始，无需启动工单应用。通过后在同一父目录新开需求会话：`$matt-full-stack 实现 REQUIREMENT.md 中的「客服领取工单」。`
 
 ## 1. 确认边界，预览再安装
 
@@ -19,28 +19,30 @@ node $matt init
 
 使用 Node 22.12+ 的受支持 LTS 版本。上游独立保存；不需要发布 npm 包或把下游变为 monorepo。可用 `--workspace <父目录>` 显式指定目标。首次完成以末次输出 `changes=0` 为准。父目录不必有 `.git`；不自动建立、嵌套或提交 Git 仓库。已有子仓的安装、调试、提交仍按各自指令执行。
 
-`discover` 只看直接下属 Git 仓库（含 worktree）、根级包/锁/启动脚本及 README 的本地地址；输出是**候选**。核对 `.matt/workspace.json`，必要时只读检查候选仓的脚本实现、路由、代理、容器端口和配置样例。不搜索 `.env`、浏览器个人配置或旧项目凭据。地址不填令牌；前端 `baseUrl` 指向真实测试前端，`healthUrl` 是免凭据且能返回 2xx 的就绪端点。多个候选先据证据排除；确属业务选择再询问。启动行只是建议，不从配置自动执行 shell。切勿以“目录名像前端”或框架默认端口为事实。
+`discover` 只看直接下属 Git 仓库（含 worktree）、根级包/锁/启动脚本及 README 的本地地址；输出是**候选**。只读核对技术栈和仓库指令，不搜索 `.env`、浏览器配置或历史凭据。`.matt/workspace.json` 的 URL 和启动命令留给业务验收，初始化时不访问、不执行，也不改写为夹具地址。已有两个空 Git 仓但技术栈尚未选定时，先请用户确认两端选型，不用示例栈代替。
 
 ## 2. 在父目录准备运行环境
 
 ```powershell
 npm.cmd ci --prefix .matt/runtime --ignore-scripts --no-audit --no-fund
 node .matt/runtime/run.mjs chromium
-node .matt/runtime/run.mjs nodes
 ```
 
-私有 npm 包和锁位于 `.matt/runtime/`，不占用已有父/子仓 `package.json`；浏览器二进制默认使用 Playwright 系统缓存。Linux 缺系统库时由有权限的维护者运行 `node .matt/runtime/node_modules/playwright/cli.js install-deps chromium`。`nodes` 生成与该锁匹配的 Node Spec，编写 YAML 时查询它。所有 `run.mjs` 命令的 cwd 必须是消费父目录；不要进 `e2e` 或任一子仓运行。
+父层依赖和锁位于 `.matt/runtime/`；浏览器使用 Playwright 缓存。Linux 缺系统库时由有权限的维护者运行 `node .matt/runtime/node_modules/playwright/cli.js install-deps chromium`。所有 `run.mjs` 命令从消费父目录运行。
 
-由各端在各自 cwd 内用项目自有命令和专用测试环境安装所需依赖、启动/复用测试服务；父会话核对两个 URL、前端 API 代理/构建时地址和服务版本。只向服务传该服务需要的配置；不要向全局 shell、前端构建变量或应用进程导出 Midscene 模型变量。后台启动时记录自己启动的 PID；结束只停止本次启动的进程。
+`init` 只写父目录。**环境会话**在前后端仓各自的测试目录中复用或编写以下入口，保持与项目相同的语言、框架和代理/API 地址配置方式。它们不进入生产构建、路由或启动链。
+
+- **后端**：启动独立的本地测试服务，只处理 `GET /__matt_selftest/marker?run=<UUID>`。进程启动时在内存生成一个随机实例值；每次返回 JSON `{"marker":"<实例值>:<run>"}`，禁用缓存。既不导入业务应用，也不初始化 ORM、数据库（含测试库）、迁移、种子、队列或后台任务。
+- **前端**：用独立测试入口提供 `/__matt_selftest.html?run=<UUID>`。页面通过真实 HTTP 向指定后端夹具请求上述标记，将响应的 `marker` 原样写入可见的 `[data-matt-marker]` 元素。优先按项目惯例使用同源代理；项目使用直接 API 地址时只允许本机夹具 origin。勿在页面硬编码结果或拦截请求来返回 mock。
+- **启动条件**：先审查依赖安装钩子与启动链，仅装必要依赖；两端用隔离配置，不加载业务 `.env` 或数据库凭据。只监听 `127.0.0.1`，用两个不同且未被占用的夹具端口，确认本次进程实际绑定成功再运行用例。若缺技术栈、子仓写权限或无法排除业务副作用，记录阻塞，不改跑业务服务。
 
 ```powershell
-node .matt/runtime/run.mjs doctor
-node .matt/runtime/run.mjs test e2e/cases/environment.yaml
+node .matt/runtime/run.mjs selftest 4273 4274  # 示例：实际的前端、后端夹具端口
 ```
 
-`doctor` 同时检查两端 HTTP 与 Chromium 启动；冒烟仅打开首页并检查可见 body，**均非业务验收**。若仅一端就绪，仍交接该端，记录另一端阻塞。
+`selftest` 使用自己的 Midscene YAML `ENV-01` 和全新 Chromium 上下文。每次用新的 UUID 从后端取期望标记，再打开前端测试页核对显示值；不使用业务登录钩子、用例、模型或健康地址。记录两端测试入口、启动命令与报告位置（`.matt/reports/selftest-*/`），只停止本次启动的进程。通过只表示「项目技术栈下的 E2E 链路已跑通；未连接数据库，未验证业务功能」。失败就报告阻塞，不以两个 HTTP 200 代替。
 
-## 3. 登录与模型分开配置
+## 3. 业务验收时再配置登录与模型
 
 先检查父层 `.gitignore` 受管段有效。父目录有 Git 时，先用 `git check-ignore .matt/private/model.env .matt/private/state.json .matt/reports/sample`，并用 `git ls-files -- .matt/private .matt/reports midscene_run e2e/midscene_run` 核实没有已跟踪的敏感文件；没有父 Git 时仍落实本机用户级权限。报告可能含页面、Cookie 相关错误或截图，视同敏感数据。不复制真实数据，不上传报告。私有目录仅授权当前测试用户；CI 从 Secret Store 临时落盘并按环境策略销毁。
 
@@ -99,7 +101,7 @@ node .matt/runtime/sessions.mjs spec --models .matt/private/另一工具.json
 
 ### 执行验收
 
-父会话执行 `.agents/skills/matt-full-stack/SKILL.md`。单文件运行 `node .matt/runtime/run.mjs test e2e/cases/<场景>.yaml`，全量运行 `node .matt/runtime/run.mjs test`。以退出码、原生 summary/HTML、具体 case 与预期对应关系为证据。`.matt/reports/<运行ID>/receipt.json` 记录本地 checkout SHA 和 dirty 状态；**不是**已部署版本证明。核对服务构建标识或启动记录、真实账号/后端与合成数据，记录在 `spec/<需求>.md`；任何缺项标为未验证/阻塞。工具返回零不自动签收。注意数据清理、测试幂等和不同角色隔离。
+父会话执行 `.agents/skills/matt-full-stack/SKILL.md`。此时才核实 `.matt/workspace.json` 的业务测试地址与版本，启动授权的测试服务；`doctor` 检查这两个地址和 Chromium，`nodes` 生成编写 YAML 用的节点清单。单文件运行 `node .matt/runtime/run.mjs test e2e/cases/<场景>.yaml`，全量运行 `node .matt/runtime/run.mjs test`。以退出码、原生 summary/HTML、具体 case 与预期对应关系为证据。`.matt/reports/<运行ID>/receipt.json` 记录本地 checkout SHA 和 dirty 状态；**不是**已部署版本证明。核对服务构建标识或启动记录、真实账号/后端与合成数据，记录在 `spec/<需求>.md`；任何缺项标为未验证/阻塞。工具返回零不自动签收。注意数据清理、测试幂等和不同角色隔离。
 
 ## 5. 升级与冲突
 
@@ -117,7 +119,7 @@ node $matt update
 
 - 接受上游：只将对应文件/标记段改成新版模板，再预览应用。保留本地或手工合并：用 `node $matt update --keep '<清单相对路径>'` 预览，然后同参数加 `--apply`。可重复 `--keep`；记录接受的本地摘要，上游再变会再次提示。`.gitignore` 的保护段必须恢复，额外规则可放段外。
 - 若进程中断，只在确认 `.matt/install.lock` 记录的安装进程已结束后移除该锁，重新预览；写入逐文件原子替换，清单最后更新。拒绝降级、未知清单格式、目标路径链接及子仓目录碰撞。切勿为消除冲突删除清单。
-- 锁或运行器更新后重复第 2 节的 `npm ci`、安装 Chromium、`doctor` 和代表性 YAML。
+- 锁或运行器更新后重复第 2 节的锁定安装与隔离自测。旧版 `e2e/cases/environment.yaml` 可能是项目自有文件，升级保留；它仍走业务配置，不作环境自测。
 
 ## 故障分流
 

@@ -9,8 +9,8 @@ import { systemEnv } from './system-env.mjs';
 const [command, selected, ...extra] = process.argv.slice(2);
 const root = process.cwd();
 const runtime = fileURLToPath(new URL('.', import.meta.url));
-const child = (entry, args, env = systemEnv()) => {
-  const result = spawnSync(process.execPath, [resolve(runtime, 'node_modules', entry), ...args], { cwd: root, env, stdio: 'inherit' });
+const child = (entry, args, env = systemEnv(), cwd = root) => {
+  const result = spawnSync(process.execPath, [resolve(runtime, 'node_modules', entry), ...args], { cwd, env, stdio: 'inherit' });
   if (result.error) throw result.error;
   return result.status ?? 1;
 };
@@ -38,9 +38,23 @@ function versions(workspace) {
 
 async function main() {
   if (relative(root, resolve(runtime, '../..')) || !existsSync('.matt/manifest.json')) throw new Error('请从已初始化的共同父目录运行');
+  if (command === 'selftest') {
+    const ports = [selected, extra[0]];
+    if (extra.length !== 1 || ports.some(port => !/^[1-9]\d{0,4}$/.test(port) || Number(port) > 65535) || ports[0] === ports[1]) {
+      throw new Error('selftest 需要两个独立的本机夹具端口：selftest <前端端口> <后端端口>');
+    }
+    const dir = resolve(runtime, 'selftest');
+    if (existsSync(resolve(dir, '.env'))) throw new Error('隔离自测目录不可包含 .env');
+    const out = `.matt/reports/selftest-${randomUUID()}`;
+    mkdirSync(out, { recursive: true });
+    const env = { ...systemEnv(), MATT_SELFTEST_FRONTEND: `http://127.0.0.1:${ports[0]}`, MATT_SELFTEST_BACKEND: `http://127.0.0.1:${ports[1]}`, MATT_SELFTEST_REPORT: resolve(out, 'html') };
+    const status = child('@midscene/test/bin/midscene-test', ['environment.yaml', '--config', 'config.mjs', '--result-dir', resolve(out)], env, dir);
+    console.log(`隔离链路自测：${status === 0 ? '通过' : '失败'}（非业务验收）。报告：${out}`);
+    return status;
+  }
   if (extra.length || (selected && command !== 'test')) throw new Error('只有 test 接受一个可选 YAML 文件或目录');
-  const workspace = JSON.parse(readFileSync('.matt/workspace.json', 'utf8'));
   if (command === 'chromium') return child('playwright/cli.js', ['install', 'chromium']);
+  const workspace = JSON.parse(readFileSync('.matt/workspace.json', 'utf8'));
   if (command === 'doctor') {
     let ok = true;
     for (const role of ['frontend', 'backend']) {
@@ -58,7 +72,7 @@ async function main() {
     } catch { console.log('Chromium: 不可用，请检查依赖和浏览器安装'); ok = false; }
     return ok ? 0 : 1;
   }
-  if (!['nodes', 'model', 'test'].includes(command)) throw new Error('用法：node .matt/runtime/run.mjs chromium|doctor|nodes|model|test [e2e/cases/文件.yaml]');
+  if (!['nodes', 'model', 'test'].includes(command)) throw new Error('用法：node .matt/runtime/run.mjs selftest <前端端口> <后端端口> 或 chromium|doctor|nodes|model|test [e2e/cases/文件.yaml]');
   if (existsSync('.env')) throw new Error('Midscene 可能自动读取父目录 .env；为避免混用凭据，本工具拒绝运行。请按 AI_SETUP.md 处理。');
   const cli = '@midscene/test/bin/midscene-test';
   const config = ['--config', 'e2e/matt.config.mjs'];

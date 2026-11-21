@@ -9,6 +9,15 @@ import { get, put, repo, run, snapshot, temp } from './helpers.mjs';
 
 const cli = (cwd, args, status = 0, release = source) => run(cwd, process.execPath, [join(release, 'bin/matt.mjs'), ...args], status);
 
+test('环境自测必须指定两个独立本机测试端口，不回退到业务配置', () => {
+  const work = temp('isolated-'); repo(work, 'ui', true); repo(work, 'api', false);
+  cli(work, ['init', '--apply']);
+  put(work, '.matt/workspace.json', '业务配置不应读取');
+  for (const args of [[], ['4273', '4273'], ['https://example.org', '4274'], ['0', '65536']]) {
+    assert.match(run(work, process.execPath, ['.matt/runtime/run.mjs', 'selftest', ...args], 1), /独立.*端口/);
+  }
+});
+
 test('按角色生成会话计划，切换工具映射并拒绝无效配置', () => {
   const work = temp('sessions-'); repo(work, 'ui', true); repo(work, 'api', false);
   cli(work, ['init', '--apply']);
@@ -96,9 +105,10 @@ test('发现与幂等初始化：不改子仓、不接管已有父工程', () =>
   assert.equal(statSync(join(work, '.matt/manifest.json')).mtimeMs, mtime);
   assert.ok(get(work, 'AGENTS.md').startsWith('原有父指令\r\n'));
   assert.equal(get(work, 'package.json'), '{"private":true}');
-  unlinkSync(join(work, 'e2e/cases/environment.yaml'));
-  assert.match(cli(work, ['update', '--apply']), /changes=0/);
   assert.ok(!existsSync(join(work, 'e2e/cases/environment.yaml')));
+  unlinkSync(join(work, 'e2e/login.mjs'));
+  assert.match(cli(work, ['update', '--apply']), /changes=0/);
+  assert.ok(!existsSync(join(work, 'e2e/login.mjs')));
   for (const dir of [ui, api]) assert.equal(run(dir, 'git', ['status', '--porcelain']), '');
   repo(work, 'another', true);
   assert.equal(JSON.parse(cli(work, ['discover'])).config.frontend.repo, null);
