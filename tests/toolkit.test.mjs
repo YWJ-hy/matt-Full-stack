@@ -151,16 +151,49 @@ test('新建工作区只注册父工作流，随包 skill 及引用完整，其�
   const skills = '.agents/skills';
   const router = get(work, `${skills}/matt-full-stack/SKILL.md`);
   const prompts = get(work, `${skills}/matt-full-stack/references/dispatch.md`);
-  const names = new Set([...`${router}\n${prompts}`.matchAll(/\$mattpocock-skills:([a-z-]+)/g)].map(match => match[1]));
+  const review = get(work, `${skills}/matt-full-stack/references/review.md`);
+  assert.ok(router.includes('(references/review.md)') && prompts.includes('(review.md)'));
+  const skillNames = text => new Set([...text.matchAll(/\$mattpocock-skills:([a-z-]+)/g)].map(match => match[1]));
+  const names = skillNames(`${router}\n${prompts}\n${review}`);
+  const automatic = skillNames([router, prompts, review].join('\n').split('\n').filter(line => !line.startsWith('> 手动入口：')).join('\n'));
   for (const [directory, files] of Object.entries(skillSources)) {
     const name = basename(directory);
     assert.ok(names.has(name), name);
     for (const file of files) assert.ok(existsSync(join(source, 'vendor/mattpocock', name, file)), `${name}/${file}`);
     const reference = get(source, `vendor/mattpocock/${name}/SKILL.md`);
+    if (/^disable-model-invocation: true$/m.test(reference)) assert.ok(!automatic.has(name), `${name} 只能由用户调用`);
     for (const link of reference.matchAll(/\[[^\]]+\]\(([\w./-]+\.md)\)/g)) assert.ok(existsSync(join(source, 'vendor/mattpocock', name, link[1])), `${name}/${link[1]}`);
   }
   for (const name of ['research', 'prototype', 'pr']) assert.ok(router.includes(`$mattpocock-skills:${name}`), name);
   assert.deepEqual(readdirSync(join(work, skills)), ['matt-full-stack']);
+});
+
+test('补丁审查：按安装指南获取最终差异，在基线 checkout 还原本单而不夹带其他改动', () => {
+  const work = temp('patch-review-');
+  const ui = repo(work, 'ui', true); repo(work, 'api', false); snapshot(ui);
+  cli(work, ['init', '--apply', '--e2e', 'off']);
+  const guide = get(work, '.agents/skills/matt-full-stack/references/review.md');
+  const git = (...args) => run(ui, 'git', args);
+  const base = git('rev-parse', 'HEAD').trim();
+  put(ui, 'README.md', 'index only\n'); git('add', 'README.md');
+  put(ui, 'README.md', 'final contents\n');
+  put(ui, 'new test.txt', 'regression\n'); put(ui, 'unrelated.txt', 'not part of this task\n');
+  const before = git('status', '--porcelain');
+  assert.equal(git('diff', `${base}...HEAD`), '');
+
+  const commands = [...guide.matchAll(/`git (diff [^`]+)`/g)].map(match => match[1].split(' '));
+  const paths = { '<起始SHA>': base, '<本单路径…>': 'README.md', '<新文件>': 'new test.txt' };
+  const render = args => args.map(arg => paths[arg] ?? arg);
+  const tracked = git(...render(commands.find(args => args.includes('<本单路径…>'))));
+  const added = run(ui, 'git', render(commands.find(args => args.includes('<新文件>'))), 1);
+  put(work, 'change.patch', tracked + added);
+  const checkout = join(work, 'review');
+  git('worktree', 'add', '--detach', checkout, base);
+  for (const options of [['--check'], []]) run(checkout, 'git', ['apply', ...options, join(work, 'change.patch')]);
+  for (const path of ['README.md', 'new test.txt']) assert.equal(get(checkout, path), get(ui, path));
+  assert.ok(!existsSync(join(checkout, 'unrelated.txt')));
+  assert.equal(git('status', '--porcelain'), before);
+  assert.equal(git('show', ':README.md'), 'index only\n');
 });
 
 test('升级按旧清单清理原样副本，整个保留本地定制的 skill', () => {
