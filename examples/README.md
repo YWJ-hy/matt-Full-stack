@@ -17,11 +17,11 @@ cd ../matt-ticket-demo
 
 用 AI 开发工具打开 **`matt-ticket-demo` 父目录**。脚本已经安装了工具包；在第一个会话中发送：
 
-> 请按 `.matt/AI_SETUP.md` 准备环境，只运行前后端隔离夹具的自测。
+> 请按 `.matt/AI_SETUP.md` 初始化 Midscene E2E 环境，向我询问缺少的模型配置，验证模型和隔离链路。
 
-环境会话只启动 `frontend/selftest/` 下的 Vite 测试页和 `backend/selftest/` 下的 Express 内存接口。`ENV-01` 验证浏览器能通过前端代理显示本次后端标记；通过就停止两个夹具、交接报告。不启动工单服务、不登录、不读写数据库。失败时排查夹具，不开始实现需求。
+会话先询问缺少的 base URL、模型名、family 和 API key；Key 通过安全输入或本地私密编辑器填写，别贴到聊天里。经你同意后，`setup` 调用模型验证，再用 `ENV-01` 检查浏览器能否通过隔离前端读到内存后端的本次标记。两项都通过才完成初始化。不启动工单服务、不登录、不读写数据库。
 
-**手动复现环境自测**（命令均在体验父目录运行，PowerShell 必要时用 `npm.cmd`）：
+**手动复现**：先按 `.matt/AI_SETUP.md` 第 2 节在本地填写模型配置并确认可发送验证请求（可能计费）。以下命令均在体验父目录运行，PowerShell 必要时用 `npm.cmd`：
 
 ```sh
 npm ci --prefix backend --ignore-scripts
@@ -33,7 +33,7 @@ node .matt/runtime/run.mjs chromium
 在两个终端分别运行 `node backend/selftest/server.mjs 4274` 和 `node frontend/selftest/server.mjs 4273 4274`。确认两端启动成功，在第三个终端运行：
 
 ```sh
-node .matt/runtime/run.mjs selftest 4273 4274
+node .matt/runtime/run.mjs setup 4273 4274
 ```
 
 报告在 `.matt/reports/selftest-*/`。若端口已占用，换两个空闲端口并同步修改三条命令；完成后用 Ctrl+C 停止两个夹具。
@@ -48,7 +48,7 @@ node .matt/runtime/run.mjs selftest 4273 4274
 
 ## 4. 仅在业务会话中查看工单与验证记录
 
-服务运行时，在浏览器打开 `http://127.0.0.1:4173/`，点「以体验客服身份登录」。浏览器用例通过前端代理向本机后端建立同一角色的会话。重启后端会重置数据和会话，适合重新演练。基线使用 DOM 断言，模型调用为零。新增验收用例若使用视觉模型，按父目录手册配置模型凭据，或让 AI 编写确定性的浏览器交互与断言。
+服务运行时，在浏览器打开 `http://127.0.0.1:4173/`，点「以体验客服身份登录」。浏览器用例通过前端代理向本机后端建立同一角色的会话。重启后端会重置数据和会话，适合重新演练。业务基线使用 DOM 断言，不调用模型；需要视觉步骤的新用例可使用初始化时已验证的配置。
 
 如需在业务阶段手动复现，打开两个终端，均位于体验父目录，一个运行 `npm run dev --prefix backend`，另一个运行 `npm run dev --prefix frontend`。保留两个服务，在第三个终端运行以下命令。
 

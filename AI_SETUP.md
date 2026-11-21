@@ -1,6 +1,6 @@
 # AI 实施手册
 
-首次接入或升级在共同父目录单开环境会话，只验证 **浏览器 → 项目技术栈的测试前端 → HTTP → 内存测试后端**。已有业务和全新项目走同一条隔离路径。第 2 节通过或记录阻塞后结束会话；登录、真实业务服务和业务用例留给需求会话。
+首次接入或升级在共同父目录单开环境会话。**初始化完成**以第 2 节的 `setup` 返回 0 为准：Midscene 视觉模型验证通过，且浏览器能通过隔离前端读回内存后端的标记。登录、真实业务服务和业务用例留给需求会话。
 
 **体验项目：** `examples/create-workspace.mjs` 已安装工具包，并在两端的 `selftest/` 中备好 Vite 和 Express 夹具。从第 2 节开始，无需启动工单应用。通过后在同一父目录新开需求会话：`$matt-full-stack 实现 REQUIREMENT.md 中的「客服领取工单」。`
 
@@ -17,11 +17,20 @@ node $matt init --apply
 node $matt init
 ```
 
-使用 Node 22.12+ 的受支持 LTS 版本。上游独立保存；不需要发布 npm 包或把下游变为 monorepo。可用 `--workspace <父目录>` 显式指定目标。首次完成以末次输出 `changes=0` 为准。父目录不必有 `.git`；不自动建立、嵌套或提交 Git 仓库。已有子仓的安装、调试、提交仍按各自指令执行。
+使用 Node 22.12+ 的受支持 LTS 版本。上游独立保存；不需要发布 npm 包或把下游变为 monorepo。可用 `--workspace <父目录>` 显式指定目标。末次输出 `changes=0` 仅表示工具文件同步完成。父目录不必有 `.git`；不自动建立、嵌套或提交 Git 仓库。已有子仓的安装、调试、提交仍按各自指令执行。
 
 `discover` 只看直接下属 Git 仓库（含 worktree）、根级包/锁/启动脚本及 README 的本地地址；输出是**候选**。只读核对技术栈和仓库指令，不搜索 `.env`、浏览器配置或历史凭据。`.matt/workspace.json` 的 URL 和启动命令留给业务验收，初始化时不访问、不执行，也不改写为夹具地址。已有两个空 Git 仓但技术栈尚未选定时，先请用户确认两端选型，不用示例栈代替。
 
 ## 2. 在父目录准备运行环境
+
+**先向用户收齐模型配置。** 在消费父目录运行 `node .matt/runtime/run.mjs model-config`。它不联网，只列缺少的字段，不显示已有值。初次接入缺少配置是预期结果：此时暂停后续步骤，直接问用户缺哪几项；已有的不要重复问，也不要用默认值代填。
+
+- 缺少非敏感项时问：「你要用哪一个视觉模型？请提供服务商的 base URL、模型名和匹配的 Midscene family。」只问检查点名的项。
+- 缺 API key 时发起安全输入。在 T3 中用 `request_secret` 文件交付；没有安全输入功能时，请用户在本地私密编辑器填写 `.matt/private/model.env`，完成后告知。不要让用户在聊天中粘贴 Key，也不要打印凭据文件、请求头或原生 `model verify` 输出。
+- 写入前检查父目录的 `.gitignore`。若父目录有 Git，用 `git check-ignore .matt/private/model.env .matt/private/state.json .matt/reports/sample` 和 `git ls-files -- .matt/private .matt/reports midscene_run e2e/midscene_run` 确认私有路径均被忽略且未被跟踪。限制私有目录和文件为当前用户可读写；仅在文件不存在时从 `.matt/model.env.example` 复制。按缺项补齐，保留其他模型设置；不要从 shell、业务 `.env` 或其他项目借用凭据。
+- 重跑 `model-config` 确认无缺项。向用户确认允许向所配置端点发送 Midscene 的验证请求（含测试图像，可能计费），再执行下面的 `setup`。用户未提供必要信息或未授权时，明确报告「初始化未完成」并说明还缺什么，不能用确定性冒烟替代。
+
+**准备浏览器和隔离夹具。**
 
 ```powershell
 npm.cmd ci --prefix .matt/runtime --ignore-scripts --no-audit --no-fund
@@ -37,22 +46,17 @@ node .matt/runtime/run.mjs chromium
 - **启动条件**：先审查依赖安装钩子与启动链，仅装必要依赖；两端用隔离配置，不加载业务 `.env` 或数据库凭据。只监听 `127.0.0.1`，用两个不同且未被占用的夹具端口，确认本次进程实际绑定成功再运行用例。若缺技术栈、子仓写权限或无法排除业务副作用，记录阻塞，不改跑业务服务。
 
 ```powershell
-node .matt/runtime/run.mjs selftest 4273 4274  # 示例：实际的前端、后端夹具端口
+node .matt/runtime/run.mjs setup 4273 4274  # 示例：实际的前端、后端夹具端口
 ```
 
-`selftest` 使用自己的 Midscene YAML `ENV-01` 和全新 Chromium 上下文。每次用新的 UUID 从后端取期望标记，再打开前端测试页核对显示值；不使用业务登录钩子、用例、模型或健康地址。记录两端测试入口、启动命令与报告位置（`.matt/reports/selftest-*/`），只停止本次启动的进程。通过只表示「项目技术栈下的 E2E 链路已跑通；未连接数据库，未验证业务功能」。失败就报告阻塞，不以两个 HTTP 200 代替。
+`setup` 先执行原生 `model verify`，通过后才运行隔离自测 `ENV-01`。夹具使用全新 Chromium 上下文和本次 UUID 核对标记，不接收模型凭据，不加载业务登录钩子、用例或健康地址。两步都通过才报告环境就绪；否则报告失败的步骤，不交接到需求会话。记录模型验证结果（不含凭据）、夹具启动命令和报告位置（`.matt/reports/selftest-*/`），只停止本次启动的进程。单独排障可运行 `model` 或 `selftest <前端端口> <后端端口>`，各自通过都不代表初始化完成。
 
-## 3. 业务验收时再配置登录与模型
+## 3. 业务验收时配置登录与用例
 
-先检查父层 `.gitignore` 受管段有效。父目录有 Git 时，先用 `git check-ignore .matt/private/model.env .matt/private/state.json .matt/reports/sample`，并用 `git ls-files -- .matt/private .matt/reports midscene_run e2e/midscene_run` 核实没有已跟踪的敏感文件；没有父 Git 时仍落实本机用户级权限。报告可能含页面、Cookie 相关错误或截图，视同敏感数据。不复制真实数据，不上传报告。私有目录仅授权当前测试用户；CI 从 Secret Store 临时落盘并按环境策略销毁。
-
-```powershell
-New-Item -ItemType Directory -Force .matt/private | Out-Null
-if (!(Test-Path .matt/private/model.env)) { Copy-Item .matt/model.env.example .matt/private/model.env }
-```
+报告可能含页面、Cookie 相关错误或截图，按第 2 节保护私有文件，不复制真实数据，不上传报告。CI 从 Secret Store 临时落盘并按环境策略销毁。
 
 - **登录：** 读项目现有登录实现，选择授权的测试租户/最小权限账号。Cookie 或 localStorage 会话可在本机专用测试浏览器中交互登录：`node .matt/runtime/node_modules/playwright/cli.js open --browser chromium --save-storage=.matt/private/state.json <实际测试前端URL>`，用户登录后关闭窗口。将 `e2e/login.mjs` 的 `session` 设为 `{ storageState: '.matt/private/state.json' }`。sessionStorage、测试 token、API 换票或 SSO 请用项目自有机制实现 `prepare({ page, context, workspace })`，只对已核实的测试 origin 注入；不要将业务凭据写入模型文件、YAML、提示词或公共 spec。此 hook 每个 YAML 文件启动一次，同一文件内的 case 共用页面；独立角色分文件，或显式复位。
-- **模型：** 只有 `aiAct`、`aiAssert` 等视觉节点需要模型。由用户在本地私密编辑器/密钥管理器填写 `.matt/private/model.env`；T3 中需要代收时用安全的 `request_secret` 文件交付，不要请求聊天粘贴或回显。填写服务商视觉模型 endpoint、name、匹配的 family 与 API key。仅 `model` / `test` 子进程读取此文件；运行器不会继承 shell 的模型变量，Chromium 进程不传模型配置。经允许向相应模型发送测试页面、产生费用后再执行 `node .matt/runtime/run.mjs model`。未提供密钥时继续确定性冒烟，将视觉步骤标为未验证。
+- **视觉步骤：** `aiAct`、`aiAssert` 使用初始化时已验证的模型。业务测试页面不同于初始化验证图像；发送前确认页面数据和费用已获授权。
 - **业务用例：** 查前端路由表、权限守卫、请求封装和后端 handler，核实入口和读回点；父会话维护 `e2e/cases/*.yaml`，不让用户逐页报 URL。例（按真实契约替换），这不是可直接宣布通过的验收项：
 
 ```yaml
@@ -119,7 +123,7 @@ node $matt update
 
 - 接受上游：只将对应文件/标记段改成新版模板，再预览应用。保留本地或手工合并：用 `node $matt update --keep '<清单相对路径>'` 预览，然后同参数加 `--apply`。可重复 `--keep`；记录接受的本地摘要，上游再变会再次提示。`.gitignore` 的保护段必须恢复，额外规则可放段外。
 - 若进程中断，只在确认 `.matt/install.lock` 记录的安装进程已结束后移除该锁，重新预览；写入逐文件原子替换，清单最后更新。拒绝降级、未知清单格式、目标路径链接及子仓目录碰撞。切勿为消除冲突删除清单。
-- 锁或运行器更新后重复第 2 节的锁定安装与隔离自测。旧版 `e2e/cases/environment.yaml` 可能是项目自有文件，升级保留；它仍走业务配置，不作环境自测。
+- 升级后按第 2 节复用已有模型配置，重新运行 `setup`。旧版 `e2e/cases/environment.yaml` 可能是项目自有文件，升级保留；它仍走业务配置，不作环境自测。
 
 ## 故障分流
 

@@ -9,6 +9,36 @@ import { get, put, repo, run, snapshot, temp } from './helpers.mjs';
 
 const cli = (cwd, args, status = 0, release = source) => run(cwd, process.execPath, [join(release, 'bin/matt.mjs'), ...args], status);
 
+test('体验环境必须补齐模型、验证模型和隔离链路才能完成初始化', () => {
+  const work = join(temp('model-setup-'), 'demo');
+  const created = run(source, process.execPath, ['examples/create-workspace.mjs', work]);
+  assert.match(created, /模型.*隔离/);
+  put(work, '.matt/workspace.json', 'must not read business settings');
+  const invoke = (args, status = 0) => run(work, process.execPath, ['.matt/runtime/run.mjs', ...args], status);
+  const setup = ['setup', '4273', '4274'];
+  const missing = invoke(setup, 1);
+  for (const field of ['BASE_URL', 'NAME', 'FAMILY', 'API_KEY']) assert.match(missing, new RegExp(`MIDSCENE_MODEL_${field}`));
+  const path = '.matt/private/model.env';
+  const partial = 'MIDSCENE_MODEL_BASE_URL=https://fixture.invalid/v1\nMIDSCENE_MODEL_NAME=fixture\nMIDSCENE_MODEL_API_KEY=test-only-value\n';
+  put(work, path, partial + 'MIDSCENE_MODEL_FAMILY=" "\n');
+  const incomplete = invoke(['model-config'], 1);
+  assert.match(incomplete, /MIDSCENE_MODEL_FAMILY/);
+  assert.doesNotMatch(incomplete, /MIDSCENE_MODEL_API_KEY|test-only-value/);
+  put(work, path, partial + 'MIDSCENE_MODEL_FAMILY=fixture\n');
+  invoke(['model-config']);
+  const stub = '.matt/runtime/node_modules/@midscene/test/bin/midscene-test';
+  put(work, stub, `console.error(process.env.MIDSCENE_MODEL_API_KEY); process.exit(1)`);
+  const rejected = invoke(setup, 1);
+  assert.match(rejected, /模型验证失败/);
+  assert.doesNotMatch(rejected, /test-only-value|初始化完成/);
+  assert.equal(existsSync(join(work, '.matt/reports')), false);
+  const guard = `const args = process.argv.slice(2); if (args.join(' ') === 'model verify') process.exit(process.env.MIDSCENE_MODEL_API_KEY === 'test-only-value' ? 0 : 1); if (args[0] !== 'environment.yaml' || process.env.MIDSCENE_MODEL_API_KEY) process.exit(2);`;
+  put(work, stub, guard + 'process.exit(1)');
+  assert.doesNotMatch(invoke(setup, 1), /初始化完成/);
+  put(work, stub, guard);
+  assert.match(invoke(setup), /初始化完成/);
+});
+
 test('环境自测必须指定两个独立本机测试端口，不回退到业务配置', () => {
   const work = temp('isolated-'); repo(work, 'ui', true); repo(work, 'api', false);
   cli(work, ['init', '--apply']);

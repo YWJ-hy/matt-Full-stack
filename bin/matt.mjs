@@ -17,5 +17,6 @@ try {
   else if (['init', 'update'].includes(command)) {
     if (root === realpathSync(source)) throw new Error('请选择消费工作区的父目录');
     install(root, command, !!values.apply, new Set(values.keep));
+    if (values.apply) console.log('工具文件已同步；请在环境会话按 .matt/AI_SETUP.md 补齐模型配置并运行 setup，验证 Midscene E2E 环境。');
   } else throw new Error(`未知命令 ${command}`);
 } catch (error) { console.error(error.message); process.exitCode = 1; }
