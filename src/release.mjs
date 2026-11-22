@@ -12,6 +12,7 @@ export const managed = {
   '.agents/skills/matt-full-stack/references/dispatch.md': 'templates/matt-full-stack/references/dispatch.md',
   '.agents/skills/matt-full-stack/references/issues.md': 'templates/matt-full-stack/references/issues.md',
   '.agents/skills/matt-full-stack/references/review.md': 'templates/matt-full-stack/references/review.md',
+  '.agents/skills/matt-full-stack/references/worktrees.md': 'templates/matt-full-stack/references/worktrees.md',
 };
 export const e2eManaged = {
   ...runtimeFiles(['package.json', 'package-lock.json', 'project.mjs', 'selftest/environment.yaml', 'selftest/config.mjs']),
@@ -20,7 +21,7 @@ export const e2eManaged = {
 export const blocks = { 'AGENTS.md': 'templates/instructions.md', '.gitignore': 'templates/ignores.txt' };
 export const seeds = {
   '.matt/sessions.json': 'templates/sessions.json',
-  'spec/full-stack.md': 'templates/spec.md',
+  ...Object.fromEntries(['shared.md', 'frontend.md', 'backend.md', 'delivery.md'].map(name => [`spec/_templates/${name}`, `templates/spec/${name}`])),
 };
 export const e2eSeeds = {
   'e2e/matt.config.mjs': 'templates/matt.config.mjs',

@@ -31,7 +31,7 @@ node $matt init
 
 缺失或不完整时，请用户在**同一环境会话**显式发送 `$mattpocock-skills:setup-matt-pocock-skills`。这是交互式 skill，不是 shell 命令：先确认选择和草案，再写入父目录；保留已有内容，`## Agent skills` 放在 `matt-full-stack` 受管标记之外。不要到工具包、前端或后端重复运行。若宿主没有该 skill，提示启用原版插件后继续，不能把 `init --apply` 或 Midscene 自测当作替代。
 
-父目录没有 Git 仓库时，推荐使用父目录的本地 Markdown 工单（`.scratch/`），无需 `git init`。若选择 GitHub/GitLab，由用户确认用于全栈工单的远程仓库及必要的 Git/标签操作；不默认借用子仓 remote。工单可链接 `spec/<需求>.md`，两端仍以同一份公共契约为准。
+父目录没有 Git 仓库时，推荐使用父目录的本地 Markdown 工单（`.scratch/`），无需 `git init`。若选择 GitHub/GitLab，由用户确认用于全栈工单的远程仓库及必要的 Git/标签操作；不默认借用子仓 remote。工单可链接 `spec/<需求名>/shared.md`，两端以同一份公共契约为准。
 
 父目录约定齐备后，**仅开发在此结束**：报告「开发派单就绪」，不准备模型、浏览器或夹具。启用 E2E 则继续第 2 节。
 
@@ -105,9 +105,12 @@ cases:
 ```sh
 node .matt/runtime/sessions.mjs
 node .matt/runtime/sessions.mjs spec --models .matt/private/另一工具.json
+node .matt/runtime/sessions.mjs frontend --worktree-base
 ```
 
-命令输出可供任意会话工具读取的 JSON。派发者使用宿主实际提供的模型选择、工作目录、工作树及权限机制，并按派单模板回报结果。只能手动开会话的工具也可以使用同一份输出开会话并粘贴派单。模型不可用或无法满足隔离时标记待派发，由使用者选择合适的工具或调整配置。
+命令输出可供任意会话工具读取的 JSON。`freshContext: true` 表示新派的实现或审查角色只接收本单，不复制父会话历史；可用 subagent 或新会话，与 `worktree` 是否隔离 checkout 无关。派发者使用宿主实际提供的模型选择、工作目录、工作树及权限机制，并按派单模板回报结果。只能手动开会话的工具也可以使用同一份输出开会话并粘贴派单。模型不可用或无法满足隔离时标记待派发，由使用者选择合适的工具或调整配置。
+
+最后一条仅适用于 `worktree: true` 的实现角色：`--worktree-base` 只读输出本端当前分支、提交和 dirty 状态，不创建工作树。由宿主从该起点创建任务分支并绑定会话。需要自动准备依赖时，可在当前工具的工作树初始化钩子配置**该仓库**已有的安装脚本；未配置钩子时，在核实过的新工作树里按仓库约定初始化。无法原生创建或绑定就停在待派单。交付完成后父会话列出任务分支及其原分支，请用户决定哪些端合回。
 
 ### 选择父会话工作流
 
@@ -119,15 +122,17 @@ node .matt/runtime/sessions.mjs spec --models .matt/private/另一工具.json
 - 「只审前端相对 main 的改动。」按工作区映射进前端仓解析 `main`，不在父目录或后端运行这次审查。若需求来源是工单，把完整 URL 或父目录相对路径随报告交回；没有修复或回写授权就只出报告。
 - 「只验收当前版本的领取工单场景。」启用 E2E 时核对版本、运行已有 case 并报告结果；失败也不自动派修复。仅开发项目说明当前设置，由用户决定是否切换。
 
-自动派单直接使用宿主允许模型调用的技能，不要求每个会话手动启动原版 `grill-with-docs` 或 `implement`。仅开发时，父会话按场景或修复单登记版本、测试与审查结果；修复还需重跑原复现。注明「按项目配置未执行 E2E」，不编写 YAML，不执行下节的组合验收。
+新功能或行为变更自动使用 `grilling` 和 `domain-modeling`，不要求另行手动启动原版 `grill-with-docs`。父会话提交 `spec/<需求名>/shared.md` 和涉及端的 `frontend.md`、`backend.md` 供用户评审，即使没有问题要问也要等待这版获批，然后分别派公共 spec 和本端 spec。自动派单无需手动启动原版 `implement`。仅开发时按场景或修复单登记版本、测试与审查结果；修复还需重跑原复现。注明「按项目配置未执行 E2E」，不编写 YAML，不执行下节的组合验收。
 
 ### 执行验收（仅 E2E）
 
-父会话执行 `.agents/skills/matt-full-stack/SKILL.md`。此时才核实 `.matt/workspace.json` 的业务测试地址与版本，启动授权的测试服务；`doctor` 检查这两个地址和 Chromium，`nodes` 生成编写 YAML 用的节点清单。单文件运行 `node .matt/runtime/run.mjs test e2e/cases/<场景>.yaml`，全量运行 `node .matt/runtime/run.mjs test`。以退出码、原生 summary/HTML、具体 case 与预期对应关系为证据。`.matt/reports/<运行ID>/receipt.json` 记录本地 checkout SHA 和 dirty 状态；**不是**已部署版本证明。核对服务构建标识或启动记录、真实账号/后端与合成数据，记录在 `spec/<需求>.md`；任何缺项标为未验证/阻塞。工具返回零不自动签收。注意数据清理、测试幂等和不同角色隔离。
+父会话执行 `.agents/skills/matt-full-stack/SKILL.md`。此时才核实 `.matt/workspace.json` 的业务测试地址与版本，启动授权的测试服务；`doctor` 检查这两个地址和 Chromium，`nodes` 生成编写 YAML 用的节点清单。单文件运行 `node .matt/runtime/run.mjs test e2e/cases/<场景>.yaml`，全量运行 `node .matt/runtime/run.mjs test`。以退出码、原生 summary/HTML、具体 case 与预期对应关系为证据。`.matt/reports/<运行ID>/receipt.json` 记录本地 checkout SHA 和 dirty 状态；**不是**已部署版本证明。核对服务构建标识或启动记录、真实账号/后端与合成数据；新功能记录在 `spec/<需求名>/delivery.md`，只验收或修复沿用已有依据。任何缺项标为未验证/阻塞。工具返回零不自动签收。注意数据清理、测试幂等和不同角色隔离。
 
 ## 5. 升级、切换模式与冲突
 
 升级后按第 1 节检查父目录的 Matt 约定：旧项目缺失时补做一次，已有配置不因升级或切换 E2E 而重建。
+
+1.11 起，新需求使用 `spec/_templates/` 中的分文件模板。升级保留旧的 `spec/full-stack.md` 及已有单文件需求，不自动拆分、不使历史批准失效。继续旧功能时，父会话可从原稿提取公共与本端内容分别派发；若改变已批准的行为或范围，按新流程评审修订。若项目自有的 `docs/agents/issue-tracker.md` 仍约定单文件路径，请在环境会话核对并为新需求改指 `spec/<需求名>/shared.md`，保留历史工单链接。
 
 升级保留项目的 `e2e.enabled`；1.6 及更早的工作区首次升级时沿用原行为（`true`）。要切换，在共同父目录运行 `node $matt update --e2e off` 预览，再加 `--apply`；启用用 `--e2e on`。这会保存选择并按需补齐工具文件，不用重建工作区。关闭不会删除已有用例、登录适配、凭据或报告；再次开启后按第 2 节完成初始化。若手工编辑 `.matt/workflow.json`，请再运行 `update --apply` 同步对应文件。
 

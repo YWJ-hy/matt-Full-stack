@@ -67,6 +67,29 @@ test('仅开发：不安装 E2E 资产，仍可派单；预览和切换模式不
   assert.equal(get(work, 'spec/ticket.md'), spec);
 });
 
+test('分端规格模板可在仅开发模式使用；升级保留旧规格以及项目自己的模板和评审稿', () => {
+  const work = temp('split-spec-'); repo(work, 'ui', true); repo(work, 'api', false);
+  const names = ['shared.md', 'frontend.md', 'backend.md', 'delivery.md'];
+  cli(work, ['init', '--apply', '--e2e', 'off']);
+  for (const name of names) assert.equal(get(work, `spec/_templates/${name}`), get(source, `templates/spec/${name}`));
+  assert.deepEqual(readdirSync(join(work, 'spec')), ['_templates']);
+
+  const manifest = JSON.parse(get(work, '.matt/manifest.json'));
+  manifest.version = '1.10.0';
+  manifest.seeded = manifest.seeded.filter(path => !path.startsWith('spec/_templates/')).concat('spec/full-stack.md');
+  put(work, '.matt/manifest.json', manifest);
+  for (const name of names) unlinkSync(join(work, 'spec/_templates', name));
+  const owned = ['spec/full-stack.md', 'spec/old-ticket.md', 'spec/_templates/frontend.md', 'spec/ticket/shared.md', 'spec/ticket/frontend.md'];
+  for (const path of owned) put(work, path, `project: ${path}`);
+  cli(work, ['update']);
+  assert.ok(!existsSync(join(work, 'spec/_templates/shared.md')));
+  cli(work, ['update', '--apply']);
+  for (const path of owned) assert.equal(get(work, path), `project: ${path}`);
+  for (const name of names.filter(name => name !== 'frontend.md')) assert.equal(get(work, `spec/_templates/${name}`), get(source, `templates/spec/${name}`));
+  assert.ok(!existsSync(join(work, 'spec/ticket/backend.md')));
+  assert.match(cli(work, ['update']), /changes=0/);
+});
+
 test('首次非交互安装需明确选择；非法配置和丢失选择不会静默开启模型', () => {
   const work = temp('choice-'); repo(work, 'ui', true); repo(work, 'api', false);
   assert.match(cli(work, ['init', '--apply'], 1), /请选择模式/);
@@ -129,6 +152,8 @@ test('按角色生成会话计划，切换工具映射并拒绝无效配置', ()
   const defaults = JSON.parse(command());
   assert.equal(defaults.backend.model, 'inherit');
   assert.equal(defaults.frontend.worktree, false);
+  assert.equal(defaults.frontend.freshContext, true);
+  assert.equal(defaults.backend.freshContext, true);
   assert.equal(defaults.standards.access, 'read-only');
   assert.equal(defaults.spec.freshContext, true);
   const path = '.matt/sessions.json';
@@ -149,6 +174,33 @@ test('按角色生成会话计划，切换工具映射并拒绝无效配置', ()
   }
 });
 
+test('工作树派单只读绑定各端当前分支与提交，不猜默认分支、不替宿主创建', () => {
+  const work = temp('worktree-base-');
+  const ui = repo(work, 'client app', true), api = repo(work, 'service', false);
+  cli(work, ['init', '--apply', '--e2e', 'off']);
+  const settings = { version: 1, roles: { frontend: { worktree: true }, backend: { worktree: true }, spec: { worktree: true } } };
+  put(work, '.matt/sessions.json', settings);
+  const probe = (role, status = 0) => run(api, process.execPath, [join(work, '.matt/runtime/sessions.mjs'), role, '--worktree-base'], status);
+  assert.match(probe('frontend', 1), /尚无提交/);
+  for (const [role, dir, branch] of [['frontend', ui, 'dev/checkout-ui'], ['backend', api, 'feature/tickets']]) {
+    snapshot(dir);
+    const git = (...args) => run(dir, 'git', args).trim();
+    git('branch', '-M', 'main'); git('checkout', '-qb', branch);
+    put(dir, 'feature', role); snapshot(dir); put(dir, 'local-wip', 'not part of the commit');
+    const trees = git('worktree', 'list', '--porcelain');
+    const sha = git('rev-parse', 'HEAD'); assert.notEqual(sha, git('rev-parse', 'main'));
+    assert.deepEqual(JSON.parse(probe(role)).worktreeBase, { checkout: realpathSync(dir), branch, sha, dirty: true });
+    assert.equal(git('worktree', 'list', '--porcelain'), trees);
+    assert.equal(git('status', '--porcelain'), '?? local-wip');
+    unlinkSync(join(dir, 'local-wip')); assert.equal(JSON.parse(probe(role)).worktreeBase.dirty, false);
+  }
+  run(ui, 'git', ['checkout', '-q', '--detach']);
+  assert.match(probe('frontend', 1), /detached HEAD/);
+  assert.match(probe('spec', 1), /仅用于/);
+  settings.roles.backend.worktree = false; put(work, '.matt/sessions.json', settings);
+  assert.match(probe('backend', 1), /worktree: true/);
+});
+
 test('新建工作区只注册父工作流，随包 skill 及引用完整，其他工作流使用宿主入口', () => {
   const work = temp('skills-'); repo(work, 'ui', true); repo(work, 'api', false);
   cli(work, ['init', '--apply', '--e2e', 'off']);
@@ -157,6 +209,8 @@ test('新建工作区只注册父工作流，随包 skill 及引用完整，其�
   const prompts = get(work, `${skills}/matt-full-stack/references/dispatch.md`);
   const review = get(work, `${skills}/matt-full-stack/references/review.md`);
   assert.ok(router.includes('(references/review.md)') && prompts.includes('(review.md)'));
+  assert.ok(router.includes('(references/worktrees.md)') && prompts.includes('(worktrees.md)') && review.includes('(worktrees.md)'));
+  assert.equal(get(work, `${skills}/matt-full-stack/references/worktrees.md`), get(source, 'templates/matt-full-stack/references/worktrees.md'));
   assert.ok(router.includes('(references/issues.md)') && review.includes('(issues.md)'));
   assert.equal(get(work, `${skills}/matt-full-stack/references/issues.md`), get(source, 'templates/matt-full-stack/references/issues.md'));
   const skillNames = text => new Set([...text.matchAll(/\$mattpocock-skills:([a-z-]+)/g)].map(match => match[1]));
@@ -327,7 +381,7 @@ test('碰撞与链接：不写入目标子仓，不覆盖无基线文件', () =>
   assert.ok(!existsSync(join(nested, 'cases')));
   const linked = temp('link-'); repo(linked, 'ui', true); repo(linked, 'api', false);
   symlinkSync(nested, join(linked, 'spec'), process.platform === 'win32' ? 'junction' : 'dir');
-  assert.match(cli(linked, ['init', '--apply', '--e2e', 'off'], 1), /路径/); assert.ok(!existsSync(join(nested, 'full-stack.md')));
+  assert.match(cli(linked, ['init', '--apply', '--e2e', 'off'], 1), /路径/); assert.ok(!existsSync(join(nested, '_templates')));
   const owned = temp('owned-'); repo(owned, 'ui', true); repo(owned, 'api', false); put(owned, '.matt/runtime/run.mjs', 'user file');
   assert.match(cli(owned, ['init', '--apply', '--e2e', 'off'], 1), /CONFLICT/); assert.equal(get(owned, '.matt/runtime/run.mjs'), 'user file');
   assert.ok(!existsSync(join(owned, '.matt/manifest.json')));
