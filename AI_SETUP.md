@@ -110,6 +110,8 @@ node .matt/runtime/sessions.mjs frontend --worktree-base
 
 命令输出可供任意会话工具读取的 JSON。`freshContext: true` 表示新派的实现或审查角色只接收本单，不复制父会话历史；可用 subagent 或新会话，与 `worktree` 是否隔离 checkout 无关。派发者使用宿主实际提供的模型选择、工作目录、工作树及权限机制，并按派单模板回报结果。只能手动开会话的工具也可以使用同一份输出开会话并粘贴派单。模型不可用或无法满足隔离时标记待派发，由使用者选择合适的工具或调整配置。
 
+Orca bot 团队另见同目录 [ORCA_SETUP.md](ORCA_SETUP.md)。派单追加 `--host orca`：本次 `--model` 优先于角色模型，未指定则用接单 bot 自身默认模型。旧 `inherit` 在该模式下也按 bot 默认处理，输出 `model: null`、`modelSource: bot-default`；不会继承主控或实现 bot。Standards 与 Spec 的接单方是 Quality。其他宿主不加此参数，保留原有模型语义。
+
 最后一条仅适用于 `worktree: true` 的实现角色：`--worktree-base` 只读输出本端当前分支、提交和 dirty 状态，不创建工作树。由宿主从该起点创建任务分支并绑定会话。需要自动准备依赖时，可在当前工具的工作树初始化钩子配置**该仓库**已有的安装脚本；未配置钩子时，在核实过的新工作树里按仓库约定初始化。无法原生创建或绑定就停在待派单。交付完成后父会话列出任务分支及其原分支，请用户决定哪些端合回。
 
 ### 选择父会话工作流

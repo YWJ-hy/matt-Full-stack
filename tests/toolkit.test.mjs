@@ -343,7 +343,7 @@ test('发现与幂等初始化：不改子仓、不接管已有父工程', () =>
 
 test('旧版升级：预览无写入，冲突整批停止，保留合并和项目资产，再运行无变化', () => {
   const older = temp('old-tool-');
-  for (const entry of ['bin', 'src', 'vendor', 'templates', 'AI_SETUP.md']) cpSync(join(source, entry), join(older, entry), { recursive: true, filter: path => basename(path) !== 'node_modules' });
+  for (const entry of ['bin', 'src', 'vendor', 'templates', 'AI_SETUP.md', 'ORCA_SETUP.md']) cpSync(join(source, entry), join(older, entry), { recursive: true, filter: path => basename(path) !== 'node_modules' });
   put(older, 'package.json', { version: '0.9.0', type: 'module' });
   put(older, 'AI_SETUP.md', '旧手册'); put(older, 'templates/model.env.example', '旧模板');
   put(older, 'templates/matt-full-stack/SKILL.md', '旧流程'); put(older, 'templates/instructions.md', '旧入口');

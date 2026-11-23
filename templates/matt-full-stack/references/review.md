@@ -22,6 +22,8 @@
 
 ## 派审和报告
 
+**Orca bot 团队适配。** 下述会话解析命令追加 `--host orca`。Standards、Spec 各自有显式模型时使用该模型，否则使用接单 Quality bot 自身的默认模型；不采用下文面向其他宿主的实现会话或父会话继承规则。实际 worker 的模型核实按 `matt-orca` skill 执行。
+
 从共同父目录运行 `node .matt/runtime/sessions.mjs standards` 和 `node .matt/runtime/sessions.mjs spec` 取得配置，`repository: implementation` 指本次选定的目标仓。独立审查没有实现会话时，`inherit` 继承发起审查的父会话。两轴使用独立只读上下文、并行审查、分别报告；宿主无法嵌套派审时交父会话代派，已有实现会话仍继承其模型。
 
 两路都传仓库、固定 SHA 或补丁摘要、交付依据和已核实的[工单引用](issues.md)。提交消息里的裸编号不是切换来源的依据。Standards 按本仓规范和 Matt 的代码异味基线，Spec 对照任务单/修复预期与公共契约。独立审查缺依据时询问来源；用户确认没有，则报告「Spec 未审：无依据」，仍可交付 Standards。报告标明仓库、工单（如有）、审查模式与范围；阻塞或未审不报通过。若审后有修改，重新固定最终 SHA 或生成新补丁、复测并复审，不用旧报告签收新改动。

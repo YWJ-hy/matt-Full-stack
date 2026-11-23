@@ -8,6 +8,7 @@ const runtimeFiles = names => Object.fromEntries(names.map(name => [`.matt/runti
 export const managed = {
   ...runtimeFiles(['run.mjs', 'workflow.mjs', 'system-env.mjs', 'sessions.mjs']),
   '.matt/AI_SETUP.md': 'AI_SETUP.md',
+  '.matt/ORCA_SETUP.md': 'ORCA_SETUP.md',
   '.agents/skills/matt-full-stack/SKILL.md': 'templates/matt-full-stack/SKILL.md',
   '.agents/skills/matt-full-stack/references/dispatch.md': 'templates/matt-full-stack/references/dispatch.md',
   '.agents/skills/matt-full-stack/references/issues.md': 'templates/matt-full-stack/references/issues.md',

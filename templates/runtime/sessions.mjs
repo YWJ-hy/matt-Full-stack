@@ -42,9 +42,11 @@ function worktreeBase(role) {
 }
 
 function plan() {
-  const { positionals, values } = parseArgs({ allowPositionals: true, options: { models: { type: 'string' }, 'worktree-base': { type: 'boolean' } } });
+  const { positionals, values } = parseArgs({ allowPositionals: true, options: { models: { type: 'string' }, model: { type: 'string' }, host: { type: 'string' }, 'worktree-base': { type: 'boolean' } } });
   const [selected] = positionals;
   if (positionals.length > 1 || (selected !== undefined && !roles.includes(selected))) throw new Error('用法：sessions.mjs [frontend|backend|standards|spec] [--models 映射文件] [--worktree-base]');
+  if (values.host !== undefined && values.host !== 'orca') throw new Error('--host 仅支持 orca；其他宿主省略该参数');
+  if (values.model !== undefined && (values.host !== 'orca' || !selected)) throw new Error('--model 仅用于 --host orca 且已指定角色的派单');
   if (values['worktree-base'] && !['frontend', 'backend'].includes(selected)) throw new Error('--worktree-base 仅用于 frontend 或 backend 实现角色');
   const config = object(load('.matt/sessions.json'), 'sessions', ['version', 'roles']);
   if (config.version !== 1) throw new Error('需要 sessions.json version 1');
@@ -57,15 +59,24 @@ function plan() {
     const { model = 'inherit', worktree = false } = settings;
     if (!validModel(model) || typeof worktree !== 'boolean') throw new Error(`${role} 需要非空 model 字符串和布尔 worktree`);
     if (selected && selected !== role) continue;
-    let resolved = model;
-    if (model.startsWith('@')) {
+    const requested = values.model ?? model;
+    if (!validModel(requested)) throw new Error('派单 model 需要非空字符串');
+    let resolved = requested;
+    if (requested.startsWith('@')) {
       aliases ??= object(load('.matt/private/models.json'), '模型映射');
-      const alias = model.slice(1);
+      const alias = requested.slice(1);
       resolved = Object.hasOwn(aliases, alias) ? aliases[alias] : undefined;
-      if (!alias || !validModel(resolved) || resolved.startsWith('@') || resolved === 'inherit') throw new Error(`请为 ${role} 的 ${model} 映射当前工具支持的模型 ID`);
+      if (!alias || !validModel(resolved) || resolved.startsWith('@') || ['inherit', 'bot-default'].includes(resolved)) throw new Error(`请为 ${role} 的 ${requested} 映射当前工具支持的模型 ID`);
     }
+    if (resolved === 'bot-default' && values.host !== 'orca') throw new Error('bot-default 仅适用于 --host orca');
     const review = role === 'standards' || role === 'spec';
     result[role] = { role, model: resolved, worktree, workspaceRoot: workspace, repository: review ? 'implementation' : role, access: review ? 'read-only' : 'implementation', freshContext: true };
+    if (values.host === 'orca') {
+      const defaultModel = ['inherit', 'bot-default'].includes(resolved);
+      result[role].model = defaultModel ? null : resolved;
+      result[role].modelSource = defaultModel ? 'bot-default' : values.model !== undefined ? 'dispatch' : 'role';
+      result[role].botRole = review ? 'quality' : role;
+    }
     if (values['worktree-base']) {
       if (!worktree) throw new Error(`${role} 未配置 worktree: true`);
       result[role].worktreeBase = worktreeBase(role);
