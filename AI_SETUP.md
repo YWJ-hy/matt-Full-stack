@@ -1,12 +1,12 @@
 # AI 实施手册
 
-首次接入或升级在共同父目录单开环境会话。项目是否使用 Midscene 由 `.matt/workflow.json` 的布尔值 `e2e.enabled` 决定。仅开发在第 1 节完成初始化；启用 E2E 还需第 2 节的 `setup` 返回 0。登录、真实业务服务和业务用例留给启用 E2E 的需求会话。
+首次接入或升级在共同父目录单开环境会话。`.matt/workflow.json` 的 `e2e.enabled` 控制是否验收，`e2e.provider` 选择 `orca` 或 `midscene`。只有 Midscene 需要第 2 节的模型和隔离链路。登录、真实业务服务和业务用例留给启用 E2E 的需求会话。
 
-**体验项目：** 创建脚本已安装工具。两种模式都从第 1 节的「配置父目录的 Matt 工程约定」继续；选了 E2E 才需要第 2 节，两端的 `selftest/` 夹具已备好。
+**体验项目：** 创建脚本已安装工具。两种模式都从第 1 节的「配置父目录的 Matt 工程约定」继续；体验项目选择 Midscene 后继续第 2 节，两端的 `selftest/` 夹具已备好。
 
 ## 1. 确认边界，预览再安装
 
-首次接入且尚无选择时，先问用户：「只做开发派单（推荐），还是同时启用 Midscene E2E？」用户已说明则直接采用。交互终端也会在首次 `init --apply` 询问；非交互环境须传 `--e2e off` 或 `--e2e on`。已有配置不要再问，升级见第 5 节。
+首次接入且尚无选择时，先问用户：「只做开发派单（推荐），还是同时启用浏览器 E2E？」用户已说明则直接采用。交互终端也会在首次 `init --apply` 询问；非交互环境须传 `--e2e off` 或 `--e2e on`。已有配置直接沿用，升级见第 5 节。已接入 Orca 团队的工作区首次开启时默认选 Orca；团队配置尚未创建时，初始化用 `--e2e on --e2e-provider orca`。普通工作区默认使用 Midscene。
 
 在**消费父目录**启动终端；定位本地工具包。下例是 PowerShell（所选模式为仅开发；启用 E2E 时将两条命令的 `off` 改为 `on`）：
 
@@ -33,9 +33,9 @@ node $matt init
 
 父目录没有 Git 仓库时，推荐使用父目录的本地 Markdown 工单（`.scratch/`），无需 `git init`。若选择 GitHub/GitLab，由用户确认用于全栈工单的远程仓库及必要的 Git/标签操作；不默认借用子仓 remote。工单可链接 `spec/<需求名>/shared.md`，两端以同一份公共契约为准。
 
-父目录约定齐备后，**仅开发在此结束**：报告「开发派单就绪」，不准备模型、浏览器或夹具。启用 E2E 则继续第 2 节。
+父目录约定齐备后，**仅开发在此结束**：报告「开发派单就绪」，不准备模型、浏览器或夹具。Midscene 继续第 2 节。Orca 直接按父层 `.agents/skills/matt-full-stack/references/acceptance.md` 开展用例设计与原生浏览器验收。
 
-## 2. 仅在启用 E2E 时准备 Midscene 运行环境
+## 2. 准备 Midscene 运行环境
 
 **先向用户收齐模型配置。** 在消费父目录运行 `node .matt/runtime/run.mjs model-config`。它不联网，只列缺少的字段，不显示已有值。初次接入缺少配置是预期结果：此时暂停后续步骤，直接问用户缺哪几项；已有的不要重复问，也不要用默认值代填。
 
@@ -65,13 +65,13 @@ node .matt/runtime/run.mjs setup 4273 4274  # 示例：实际的前端、后端�
 
 `setup` 先执行原生 `model verify`，通过后才运行隔离自测 `ENV-01`。夹具使用全新 Chromium 上下文和本次 UUID 核对标记，不接收模型凭据，不加载业务登录钩子、用例或健康地址。两步都通过才报告环境就绪；否则报告失败的步骤，不交接到需求会话。记录模型验证结果（不含凭据）、夹具启动命令和报告位置（`.matt/reports/selftest-*/`），只停止本次启动的进程。单独排障可运行 `model` 或 `selftest <前端端口> <后端端口>`，各自通过都不代表初始化完成。
 
-## 3. 仅在启用 E2E 时配置业务登录与用例
+## 3. Midscene 的业务登录与用例
 
 报告可能含页面、Cookie 相关错误或截图，按第 2 节保护私有文件，不复制真实数据，不上传报告。CI 从 Secret Store 临时落盘并按环境策略销毁。
 
 - **登录：** 读项目现有登录实现，选择授权的测试租户/最小权限账号。Cookie 或 localStorage 会话可在本机专用测试浏览器中交互登录：`node .matt/runtime/node_modules/playwright/cli.js open --browser chromium --save-storage=.matt/private/state.json <实际测试前端URL>`，用户登录后关闭窗口。将 `e2e/login.mjs` 的 `session` 设为 `{ storageState: '.matt/private/state.json' }`。sessionStorage、测试 token、API 换票或 SSO 请用项目自有机制实现 `prepare({ page, context, workspace })`，只对已核实的测试 origin 注入；不要将业务凭据写入模型文件、YAML、提示词或公共 spec。此 hook 每个 YAML 文件启动一次，同一文件内的 case 共用页面；独立角色分文件，或显式复位。
 - **视觉步骤：** `aiAct`、`aiAssert` 使用初始化时已验证的模型。业务测试页面不同于初始化验证图像；发送前确认页面数据和费用已获授权。
-- **业务用例：** 查前端路由表、权限守卫、请求封装和后端 handler，核实入口和读回点；父会话维护 `e2e/cases/*.yaml`，不让用户逐页报 URL。例（按真实契约替换），这不是可直接宣布通过的验收项：
+- **业务用例：** 查前端路由表、权限守卫、请求封装和后端 handler，核实入口和读回点；开发前由验收方维护或复用 `e2e/cases/*.yaml`，不让用户逐页报 URL。例（按真实契约替换），这不是可直接宣布通过的验收项：
 
 ```yaml
 cases:
@@ -128,7 +128,7 @@ Orca bot 团队另见同目录 [ORCA_SETUP.md](ORCA_SETUP.md)。派单追加 `--
 
 ### 执行验收（仅 E2E）
 
-父会话执行 `.agents/skills/matt-full-stack/SKILL.md`。此时才核实 `.matt/workspace.json` 的业务测试地址与版本，启动授权的测试服务；`doctor` 检查这两个地址和 Chromium，`nodes` 生成编写 YAML 用的节点清单。单文件运行 `node .matt/runtime/run.mjs test e2e/cases/<场景>.yaml`，全量运行 `node .matt/runtime/run.mjs test`。以退出码、原生 summary/HTML、具体 case 与预期对应关系为证据。`.matt/reports/<运行ID>/receipt.json` 记录本地 checkout SHA 和 dirty 状态；**不是**已部署版本证明。核对服务构建标识或启动记录、真实账号/后端与合成数据；新功能记录在 `spec/<需求名>/delivery.md`，只验收或修复沿用已有依据。任何缺项标为未验证/阻塞。工具返回零不自动签收。注意数据清理、测试幂等和不同角色隔离。
+先运行 `node .matt/runtime/run.mjs plan`。由验收方按父层 `references/acceptance.md` 执行事先确定的用例。Orca 使用原生浏览器，以下命令仅用于 Midscene。验收时核实 `.matt/workspace.json` 的业务测试地址与版本，启动授权的测试服务；`doctor` 检查这两个地址和 Chromium，`nodes` 生成编写 YAML 用的节点清单。单文件运行 `node .matt/runtime/run.mjs test e2e/cases/<场景>.yaml`，全量运行 `node .matt/runtime/run.mjs test`。以退出码、原生 summary/HTML、具体 case 与预期对应关系为证据。`.matt/reports/<运行ID>/receipt.json` 记录本地 checkout SHA 和 dirty 状态；**不是**已部署版本证明。核对服务构建标识或启动记录、真实账号/后端与合成数据；新功能记录在 `spec/<需求名>/delivery.md`，只验收或修复沿用已有依据。任何缺项标为未验证/阻塞。工具返回零不自动签收。注意数据清理、测试幂等和不同角色隔离。
 
 ## 5. 升级、切换模式与冲突
 
@@ -136,7 +136,7 @@ Orca bot 团队另见同目录 [ORCA_SETUP.md](ORCA_SETUP.md)。派单追加 `--
 
 1.11 起，新需求使用 `spec/_templates/` 中的分文件模板。升级保留旧的 `spec/full-stack.md` 及已有单文件需求，不自动拆分、不使历史批准失效。继续旧功能时，父会话可从原稿提取公共与本端内容分别派发；若改变已批准的行为或范围，按新流程评审修订。若项目自有的 `docs/agents/issue-tracker.md` 仍约定单文件路径，请在环境会话核对并为新需求改指 `spec/<需求名>/shared.md`，保留历史工单链接。
 
-升级保留项目的 `e2e.enabled`；1.6 及更早的工作区首次升级时沿用原行为（`true`）。要切换，在共同父目录运行 `node $matt update --e2e off` 预览，再加 `--apply`；启用用 `--e2e on`。这会保存选择并按需补齐工具文件，不用重建工作区。关闭不会删除已有用例、登录适配、凭据或报告；再次开启后按第 2 节完成初始化。若手工编辑 `.matt/workflow.json`，请再运行 `update --apply` 同步对应文件。
+升级保留项目的 `e2e.enabled`；1.6 及更早的工作区首次升级时沿用原行为（`true`）。要切换，在共同父目录运行 `node $matt update --e2e off` 预览，再加 `--apply`；启用用 `--e2e on`。这会保存选择并按需补齐工具文件，不用重建工作区。关闭不会删除已有用例、登录适配、凭据或报告；再次开启沿用已选工具。`--e2e-provider orca|midscene` 可单独预设或与开关一起使用。旧配置只有 `enabled: true` 的按 Midscene 升级并复用 YAML。若手工编辑 `.matt/workflow.json`，请再运行 `update --apply` 同步对应文件。
 
 从 1.2 或更早版本升级时，`remove-duplicate` 标出与旧清单和上游原文均匹配的 mattpocock 文件。应用后宿主使用已安装的插件。检测到本地改动的 skill 会整体保留，用户可在核对差异后自行整理同名入口。
 
@@ -152,7 +152,7 @@ node $matt update
 
 - 接受上游：只将对应文件/标记段改成新版模板，再预览应用。保留本地或手工合并：用 `node $matt update --keep '<清单相对路径>'` 预览，然后同参数加 `--apply`。可重复 `--keep`；记录接受的本地摘要，上游再变会再次提示。`.gitignore` 的保护段必须恢复，额外规则可放段外。
 - 若进程中断，只在确认 `.matt/install.lock` 记录的安装进程已结束后移除该锁，重新预览；写入逐文件原子替换，清单最后更新。拒绝降级、未知清单格式、目标路径链接及子仓目录碰撞。切勿为消除冲突删除清单。
-- 仅在 E2E 启用时，升级后按第 2 节复用已有模型配置，重新运行 `setup`。旧版 `e2e/cases/environment.yaml` 可能是项目自有文件，升级保留；它仍走业务配置，不作环境自测。
+- 仅在启用 Midscene 时，升级后按第 2 节复用已有模型配置，重新运行 `setup`。旧版 `e2e/cases/environment.yaml` 可能是项目自有文件，升级保留；它仍走业务配置，不作环境自测。
 
 ## 故障分流
 

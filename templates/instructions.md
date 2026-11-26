@@ -1,1 +1,1 @@
-首次接入或升级：在共同父目录的环境会话按 `.matt/AI_SETUP.md` 安装工具并核对 Matt 共享工程约定。日常需求：在同一父目录用 `$matt-full-stack` 加需求描述。按 `.agents/skills/matt-full-stack/SKILL.md` 派单；子仓实现遵循各自指令。切换 E2E 按环境手册操作；`.matt/workflow.json` 的 `e2e.enabled` 决定父层是否执行浏览器验收。
+首次接入或升级：在共同父目录的环境会话按 `.matt/AI_SETUP.md` 安装工具并核对 Matt 共享工程约定。日常需求：在同一父目录用 `$matt-full-stack` 加需求描述。按 `.agents/skills/matt-full-stack/SKILL.md` 派单；子仓实现遵循各自指令。切换 E2E 按环境手册操作；`.matt/workflow.json` 的 `e2e.enabled` 控制浏览器验收，`e2e.provider` 决定用 Orca 原生浏览器还是 Midscene 执行开发前确定的用例。

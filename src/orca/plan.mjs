@@ -5,7 +5,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { source, version } from '../release.mjs';
 import { skillSources } from '../matt-skills.mjs';
 import { systemEnv } from '../../templates/runtime/system-env.mjs';
-import { parseWorkflow } from '../../templates/runtime/workflow.mjs';
+import { parseWorkflow, savedProvider } from '../../templates/runtime/workflow.mjs';
 import { digest, encode, json, read, soulSection } from './files.mjs';
 import { inventory } from './cli.mjs';
 
@@ -111,7 +111,7 @@ export function buildPlan({ root, client, cwd = process.cwd(), homes = botRoot()
   if (samePath(root, source)) throw new Error('请选择已初始化的消费工作区父目录，不是工具包仓库');
   const config = configuration(root);
   const state = loadState(root, config);
-  const e2e = parseWorkflow(read(root, '.matt/workflow.json') ?? '').e2e.enabled;
+  const { e2e } = parseWorkflow(read(root, '.matt/workflow.json') ?? '');
   const runtime = join(root, '.matt/runtime/sessions.mjs');
   if (!existsSync(runtime)) throw new Error('请先用 matt init 初始化消费工作区');
   let sessions;
@@ -122,7 +122,7 @@ export function buildPlan({ root, client, cwd = process.cwd(), homes = botRoot()
   const pending = [], changes = [], conflicts = [], bots = [];
   const conventions = read(root, 'CLAUDE.md') ?? read(root, 'AGENTS.md') ?? '';
   if (!/^## Agent skills\s*$/m.test(conventions)) pending.push({ kind: 'conventions', detail: '父目录尚未登记 Agent skills 共享约定，请按 AI_SETUP.md 完成环境接入' });
-  for (const path of ['.matt/AI_SETUP.md', '.agents/skills/matt-full-stack/SKILL.md', ...['dispatch', 'review', 'worktrees', 'issues'].map(name => `.agents/skills/matt-full-stack/references/${name}.md`)]) {
+  for (const path of ['.matt/AI_SETUP.md', '.agents/skills/matt-full-stack/SKILL.md', ...['dispatch', 'review', 'worktrees', 'issues', 'acceptance'].map(name => `.agents/skills/matt-full-stack/references/${name}.md`)]) {
     if (!read(root, path)?.trim()) pending.push({ kind: 'workspace-assets', detail: `父层工作流文件缺失或为空：${path}；请用 matt update 修复` });
   }
   for (const [role, repo] of Object.entries(repos)) if (!repo.selector) pending.push({ kind: 'repo', role, detail: `apply 将注册 ${repo.checkout}` });
@@ -178,9 +178,9 @@ export function buildPlan({ root, client, cwd = process.cwd(), homes = botRoot()
     if (!saved || digest(encode(saved.files)) !== digest(encode(hashes))) pending.push({ kind: 'registration', role, detail: `${name} 需要 apply 登记当前文件版本` });
     if (bot.paused) pending.push({ kind: 'paused', role, detail: `${name} 在 Orca 中已暂停` });
   }
-  return { root, config, state, e2e, repos, sessions, callerRole, bots, changes, conflicts, pending, bootstrap: bootstrap(root, config) };
+  return { root, config, state, e2e: e2e.enabled, e2eProvider: savedProvider(e2e) ?? null, repos, sessions, callerRole, bots, changes, conflicts, pending, bootstrap: bootstrap(root, config) };
 }
 
 export function report(plan) {
-  return { workspaceRoot: plan.root, projectId: plan.config.projectId, e2e: plan.e2e, config: plan.config, repos: plan.repos, sessions: plan.sessions, callerRole: plan.callerRole, bots: plan.bots.map(({ files, ...bot }) => bot), changes: plan.changes.map(({ root, path, action, role }) => ({ path: join(root, path), action, ...(role ? { role } : {}) })), conflicts: plan.conflicts, pending: plan.pending, bootstrap: plan.bootstrap };
+  return { workspaceRoot: plan.root, projectId: plan.config.projectId, e2e: plan.e2e, e2eProvider: plan.e2eProvider, config: plan.config, repos: plan.repos, sessions: plan.sessions, callerRole: plan.callerRole, bots: plan.bots.map(({ files, ...bot }) => bot), changes: plan.changes.map(({ root, path, action, role }) => ({ path: join(root, path), action, ...(role ? { role } : {}) })), conflicts: plan.conflicts, pending: plan.pending, bootstrap: plan.bootstrap };
 }

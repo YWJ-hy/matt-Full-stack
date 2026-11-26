@@ -10,6 +10,7 @@ export const managed = {
   '.matt/AI_SETUP.md': 'AI_SETUP.md',
   '.matt/ORCA_SETUP.md': 'ORCA_SETUP.md',
   '.agents/skills/matt-full-stack/SKILL.md': 'templates/matt-full-stack/SKILL.md',
+  '.agents/skills/matt-full-stack/references/acceptance.md': 'templates/matt-full-stack/references/acceptance.md',
   '.agents/skills/matt-full-stack/references/dispatch.md': 'templates/matt-full-stack/references/dispatch.md',
   '.agents/skills/matt-full-stack/references/issues.md': 'templates/matt-full-stack/references/issues.md',
   '.agents/skills/matt-full-stack/references/review.md': 'templates/matt-full-stack/references/review.md',

@@ -67,6 +67,54 @@ test('仅开发：不安装 E2E 资产，仍可派单；预览和切换模式不
   assert.equal(get(work, 'spec/ticket.md'), spec);
 });
 
+test('Orca 首次启用走原生浏览器；切换工具和开关互相独立，Midscene 资产可复用', () => {
+  const work = temp('orca-provider-'); repo(work, 'ui', true); repo(work, 'api', false);
+  cli(work, ['init', '--apply', '--e2e', 'off']);
+  put(work, '.matt/orca.json', { projectId: 'ticket' });
+  const plan = () => JSON.parse(run(work, process.execPath, ['.matt/runtime/run.mjs', 'plan']));
+  const midsceneConfig = 'e2e/matt.config.mjs';
+  assert.match(cli(work, ['update', '--e2e', 'on']), /e2e.provider=orca/);
+  assert.deepEqual(plan(), { enabled: false, provider: null });
+  cli(work, ['update', '--apply', '--e2e', 'on']);
+  assert.deepEqual(plan(), { enabled: true, provider: 'orca' });
+  for (const file of [midsceneConfig, '.matt/runtime/package.json', '.matt/model.env.example']) assert.ok(!existsSync(join(work, file)));
+  assert.ok(existsSync(join(work, '.agents/skills/matt-full-stack/references/acceptance.md')));
+  assert.match(run(work, process.execPath, ['.matt/runtime/run.mjs', 'test'], 1), /Orca 原生浏览器/);
+  assert.ok(!existsSync(join(work, '.matt/reports')));
+
+  cli(work, ['update', '--e2e-provider', 'midscene', '--apply']);
+  assert.deepEqual(plan(), { enabled: true, provider: 'midscene' });
+  assert.ok(existsSync(join(work, midsceneConfig)));
+  put(work, midsceneConfig, '// project settings');
+  cli(work, ['update', '--e2e-provider', 'orca', '--e2e', 'off', '--apply']);
+  assert.deepEqual(plan(), { enabled: false, provider: 'orca' });
+  cli(work, ['update', '--e2e', 'on', '--apply']);
+  assert.deepEqual(plan(), { enabled: true, provider: 'orca' });
+  cli(work, ['update', '--e2e-provider', 'midscene', '--apply']);
+  assert.equal(get(work, midsceneConfig), '// project settings');
+  assert.match(cli(work, ['update']), /changes=0/);
+});
+
+test('Orca 团队中的旧 enabled:true 仍运行 Midscene，配置错误不触发其他工具', () => {
+  const work = temp('legacy-provider-'); repo(work, 'ui', true); repo(work, 'api', false);
+  cli(work, ['init', '--apply', '--e2e', 'on']);
+  const path = '.matt/workflow.json';
+  put(work, '.matt/orca.json', { projectId: 'ticket' });
+  put(work, path, { owner: 'project', e2e: { enabled: true } });
+  const yaml = 'e2e/cases/legacy.yaml';
+  put(work, yaml, 'cases: []');
+  put(work, '.matt/runtime/node_modules/@midscene/test/bin/midscene-test', "if (!process.argv[2].endsWith('legacy.yaml')) process.exit(1); console.log('ran legacy.yaml');");
+  assert.match(run(work, process.execPath, ['.matt/runtime/run.mjs', 'test', yaml]), /ran legacy.yaml/);
+  cli(work, ['update', '--apply']);
+  const upgraded = get(work, path);
+  assert.deepEqual(JSON.parse(upgraded), { owner: 'project', e2e: { enabled: true, provider: 'midscene' } });
+  assert.match(run(work, process.execPath, ['.matt/runtime/run.mjs', 'test', yaml]), /ran legacy.yaml/);
+  assert.match(cli(work, ['update', '--apply', '--e2e-provider', 'other'], 1), /orca 或 midscene/);
+  assert.equal(get(work, path), upgraded);
+  put(work, path, { e2e: { enabled: true, provider: null } });
+  assert.match(run(work, process.execPath, ['.matt/runtime/run.mjs', 'test', yaml], 1), /orca 或 midscene/);
+});
+
 test('分端规格模板可在仅开发模式使用；升级保留旧规格以及项目自己的模板和评审稿', () => {
   const work = temp('split-spec-'); repo(work, 'ui', true); repo(work, 'api', false);
   const names = ['shared.md', 'frontend.md', 'backend.md', 'delivery.md'];

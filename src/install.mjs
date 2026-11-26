@@ -6,7 +6,7 @@ import { blocks, e2eManaged, e2eSeeds, managed, seeds, source, version } from '.
 import { discover } from './discover.mjs';
 import { skillSources } from './matt-skills.mjs';
 import { askE2e } from './e2e-option.mjs';
-import { parseWorkflow, workflowPath } from '../templates/runtime/workflow.mjs';
+import { parseWorkflow, savedProvider, validateProvider, workflowPath } from '../templates/runtime/workflow.mjs';
 
 const statePath = '.matt/manifest.json';
 const encode = value => JSON.stringify(value, null, 2) + '\n';
@@ -62,7 +62,7 @@ function atomicWrite(root, name, text) {
   } finally { if (existsSync(temp)) unlinkSync(temp); }
 }
 
-function sync(root, command, apply, keep, requestedE2e) {
+function sync(root, command, apply, keep, requestedE2e, requestedProvider) {
   const previous = read(root, statePath);
   const state = previous === null ? { format: 1, version: '0.0.0', files: {} } : JSON.parse(previous);
   if (state.format !== 1 || !state.files || !/^\d+\.\d+\.\d+$/.test(state.version)) throw new Error('无法识别清单，请先检查其版本或恢复清单');
@@ -74,16 +74,21 @@ function sync(root, command, apply, keep, requestedE2e) {
   if (oldWorkflow === null && seeded.has(workflowPath) && requestedE2e === undefined) throw new Error(`缺少 ${workflowPath}，请恢复文件或用 --e2e on|off 明确选择模式`);
   const workflow = oldWorkflow === null ? { e2e: { enabled: previous !== null } } : parseWorkflow(oldWorkflow);
   const enabled = requestedE2e ?? workflow.e2e.enabled;
-  if (oldWorkflow === null || enabled !== workflow.e2e.enabled) {
+  let provider = requestedProvider ?? savedProvider(workflow.e2e);
+  if (!provider && seeded.has('e2e/matt.config.mjs')) provider = 'midscene';
+  if (!provider && enabled) provider = existsSync(safePath(root, '.matt/orca.json')) ? 'orca' : 'midscene';
+  if (oldWorkflow === null || enabled !== workflow.e2e.enabled || provider !== workflow.e2e.provider) {
     workflow.e2e.enabled = enabled;
+    workflow.e2e.provider = provider;
     changes.push({ name: workflowPath, old: oldWorkflow, next: encode(workflow), action: oldWorkflow === null ? 'seed' : 'configure' });
   }
   seeded.add(workflowPath);
-  console.log(`e2e.enabled=${enabled}（${enabled ? '开发 + E2E' : '仅开发'}）`);
+  const useMidscene = enabled && provider === 'midscene';
+  console.log(`e2e.enabled=${enabled}（${enabled ? '开发 + E2E' : '仅开发'}） e2e.provider=${provider ?? '未选择'}`);
   const files = {};
   let conflicts = 0;
   for (const [name, src] of Object.entries({ ...managed, ...e2eManaged, ...blocks })) {
-    if (!enabled && Object.hasOwn(e2eManaged, name)) {
+    if (!useMidscene && Object.hasOwn(e2eManaged, name)) {
       if (state.files[name]) files[name] = state.files[name];
       continue;
     }
@@ -131,7 +136,7 @@ function sync(root, command, apply, keep, requestedE2e) {
     for (const change of removals) { changes.push(change); retired.delete(change.name); }
   }
   for (const name of retired) console.log(`retired (保留原文件，停止管理) ${name}`);
-  for (const [name, src] of Object.entries({ ...seeds, ...(enabled ? e2eSeeds : {}), '.matt/workspace.json': null })) {
+  for (const [name, src] of Object.entries({ ...seeds, ...(useMidscene ? e2eSeeds : {}), '.matt/workspace.json': null })) {
     if (!seeded.has(name) && !existsSync(safePath(root, name))) changes.push({ name, old: null, next: src ? template(src) : encode(discover(root).config), action: 'seed' });
     seeded.add(name);
   }
@@ -145,19 +150,20 @@ function sync(root, command, apply, keep, requestedE2e) {
     else atomicWrite(root, name, next);
   }
   console.log(`${apply ? 'applied' : 'preview'} ${version} changes=${changes.length}`);
-  return enabled;
+  return workflow.e2e;
 }
 
-export async function install(root, command, apply, keep, requestedE2e) {
+export async function install(root, command, apply, keep, requestedE2e, requestedProvider) {
+  validateProvider(requestedProvider);
   const fresh = !existsSync(safePath(root, statePath));
   if (fresh && discover(root).candidates.length < 2) throw new Error('首次安装需要在包含至少两个独立 Git 子仓库的共同父目录执行');
-  if (!apply) return sync(root, command, false, keep, requestedE2e);
+  if (!apply) return sync(root, command, false, keep, requestedE2e, requestedProvider);
   if (fresh && command === 'init' && requestedE2e === undefined && !existsSync(safePath(root, workflowPath))) requestedE2e = await askE2e();
   const lock = safePath(root, '.matt/install.lock');
   mkdirSync(dirname(lock), { recursive: true });
   const fd = openSync(lock, 'wx');
   try {
     writeFileSync(fd, String(process.pid));
-    return sync(root, command, true, keep, requestedE2e);
+    return sync(root, command, true, keep, requestedE2e, requestedProvider);
   } finally { closeSync(fd); unlinkSync(lock); }
 }

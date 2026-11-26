@@ -1,6 +1,6 @@
 # 安装 Orca bot 团队
 
-本仓库是工具包；`--workspace` 始终指向前后端两个 Git 仓库的共同父目录。第一版安装到本机 Orca，一组项目对应 Matt、Frontend、Backend、Quality 四个 bot。项目约定、spec、交付和 E2E 开关继续保存在消费父目录。
+本仓库是工具包；`--workspace` 始终指向前后端两个 Git 仓库的共同父目录。第一版安装到本机 Orca，一组项目对应 Matt、Frontend、Backend、Quality 四个 bot。项目约定、spec、交付和 E2E 配置都保存在消费父目录。新团队可在 `matt init` 时用 `--e2e on --e2e-provider orca`；已有团队从仅开发模式首次开启可用 `matt update --e2e on --apply`。已启用 Midscene 的老项目继续用原 YAML。
 
 ## 1. 准备与预览
 
@@ -62,7 +62,7 @@ node bin/matt-orca.mjs plan --workspace 'D:\projects\ticket' --json
 | 1 | 配置错误、文件冲突或 Orca 调用失败 |
 | 2 | `apply / doctor` 还有待创建、待登记、待同步、已暂停或共享约定缺失等事项 |
 
-静态就绪后，让四个 bot 分别做一次「团队就绪检查」，报告实际项目、职责、资料入口与模型策略。最后向 Matt 发一张具体需求：澄清与批准 spec → 前后端独立实现 → Quality 的两轴审查 → 按项目开关验收 → 汇总交付和合回决定。只有具体需求已获开发授权时才派实现；安装不会启动产品开发。
+静态就绪后，让四个 bot 分别做一次「团队就绪检查」，报告实际项目、职责、资料入口与模型策略。最后向 Matt 发一张具体需求：起草 spec → 启用 E2E 时 Quality 预先设计用例 → 确认业务预期与 spec → 前后端独立实现 → Quality 的两轴审查 → 按项目选定的工具逐例验收 → 汇总交付和合回决定。只有具体需求已获开发授权时才派实现；安装不会启动产品开发。
 
 当前安装器同步角色说明、工作流和各角色需要的随包 Matt skills。外部连接器和事件自动化属于后续接入；已有 bot 的个人记忆、连接和默认模型由 Orca 维护。
 

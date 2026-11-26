@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { parseEnv } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { systemEnv } from './system-env.mjs';
-import { parseWorkflow, workflowPath } from './workflow.mjs';
+import { parseWorkflow, savedProvider, workflowPath } from './workflow.mjs';
 
 const [command, selected, ...extra] = process.argv.slice(2);
 const root = process.cwd();
@@ -59,7 +59,14 @@ function versions(workspace) {
 
 async function main() {
   if (relative(root, resolve(runtime, '../..')) || !existsSync('.matt/manifest.json')) throw new Error('请从已初始化的共同父目录运行');
-  if (!parseWorkflow(readFileSync(workflowPath, 'utf8')).e2e.enabled) throw new Error('项目已关闭 E2E（仅开发），未运行命令。如需浏览器验收，请按 .matt/AI_SETUP.md 启用并初始化 E2E。');
+  const { e2e } = parseWorkflow(readFileSync(workflowPath, 'utf8'));
+  const provider = savedProvider(e2e);
+  if (command === 'plan' && !selected && !extra.length) {
+    console.log(JSON.stringify({ enabled: e2e.enabled, provider: provider ?? null }));
+    return 0;
+  }
+  if (!e2e.enabled) throw new Error('项目已关闭 E2E（仅开发），未运行命令。如需浏览器验收，请按 .matt/AI_SETUP.md 启用并初始化 E2E。');
+  if (provider === 'orca') throw new Error('当前选择 Orca 原生浏览器。请按 .agents/skills/matt-full-stack/references/acceptance.md 执行已定用例；此命令仅用于 Midscene。');
   if (command === 'selftest' || command === 'setup') {
     const ports = [selected, extra[0]];
     if (extra.length !== 1 || ports.some(port => !/^[1-9]\d{0,4}$/.test(port) || Number(port) > 65535) || ports[0] === ports[1]) {
@@ -112,7 +119,7 @@ async function main() {
   const out = `.matt/reports/${id}`;
   const env = modelEnv();
   mkdirSync(out, { recursive: true });
-  const receipt = { startedAt: new Date().toISOString(), selection: selected ?? 'e2e/cases', checkoutBefore: versions(workspace), result: 'interrupted', acceptance: 'not-assessed' };
+  const receipt = { provider, startedAt: new Date().toISOString(), selection: selected ?? 'e2e/cases', checkoutBefore: versions(workspace), result: 'interrupted', acceptance: 'not-assessed' };
   const save = () => writeFileSync(`${out}/receipt.json`, JSON.stringify(receipt, null, 2));
   save();
   const status = child(cli, [resolve('e2e/cases', target), ...config, '--result-dir', out], env);

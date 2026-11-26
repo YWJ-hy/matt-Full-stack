@@ -2,6 +2,8 @@
 
 ## 任务与回执
 
+“设计验收用例”发生在开发批准前：给 Quality 草案修订、场景 ID、父目录与用例可写范围，请它交回用例和待澄清的业务预期。下述实现单使用获批版本。
+
 每次只交接一张任务：项目与需求 ID、工单完整引用（如有）、批准的 spec 修订或故障预期、场景 ID、责任仓库、实际 checkout 与起始 SHA、可编辑范围、测试边界、模型解析结果、返回地址。前端只读公共与前端 spec，后端只读公共与后端 spec。完整指南在父目录 `.agents/skills/matt-full-stack/references/`。
 
 需要结果回到派发者时，按当前 `orca-cli` 指南向目标 `bot:<name>` 使用 `--type question --chat new`，正文通过 `--body-file` 传入；子 bot 按消息 ID `reply`。完整所有权交接才用 `handoff`。普通消息送达不表示开工或完成。登记返回的消息 ID；运行时 ID 和进度写入父目录的私有任务记录，最终证据写入本需求 `delivery.md`。
