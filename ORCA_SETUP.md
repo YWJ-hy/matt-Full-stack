@@ -47,7 +47,7 @@ node bin/matt.mjs $operation --host orca --workspace "$project"
 node bin/matt.mjs $operation --host orca --workspace "$project" --apply
 ```
 
-后续从任何 checkout 发起任务，均从父目录运行 `node .matt/runtime/docs.mjs`（或调用该脚本的绝对路径）取得共享位置。项目自有模板可放在 `<specs>/_templates/`，没有对应模板时使用本机的 `fallbackTemplates`。第一份需求起草时才创建需求目录。
+初始化会把查找共享文档的命令写入父目录 `AGENTS.md` 的受管段。从任何 checkout 发起任务，都按这条说明从共同父目录运行 `node .matt/runtime/docs.mjs`（或调用该脚本的绝对路径），使用本次返回的 `agentDocs` 和 `specs`。具体路径在安装结果中汇报。项目自有模板可放在 `<specs>/_templates/`，没有对应模板时使用本机的 `fallbackTemplates`。第一份需求起草时才创建需求目录。
 
 ```powershell
 node bin/matt-orca.mjs plan --workspace "$project"

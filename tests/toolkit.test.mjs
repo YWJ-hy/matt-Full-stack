@@ -29,8 +29,12 @@ test('团队首次选择后端，新同事克隆后按相对路径复用文档�
   assert.equal(fresh.specs, join(colleague, 'api', 'requirements'));
   assert.equal(fresh.agentDocs, join(colleague, 'api', 'handbook', 'agents'));
   cli(colleague, ['init', '--host', 'orca', '--apply']);
+  const instructions = get(colleague, 'AGENTS.md');
+  assert.ok(instructions.includes('node .matt/runtime/docs.mjs'));
+  assert.doesNotMatch(instructions, /docs\/agents\/|handbook\/agents\/|api\/requirements/);
   assert.match(cli(colleague, ['update', '--host', 'orca']), /changes=0/);
   const actual = JSON.parse(run(ui, process.execPath, [join(colleague, '.matt/runtime/docs.mjs')]));
+  assert.equal(actual.agentDocs, fresh.agentDocs);
   assert.equal(actual.specs, fresh.specs);
   assert.ok(existsSync(join(actual.fallbackTemplates, 'shared.md')));
   for (const role of ['ui', 'api']) assert.equal(run(join(colleague, role), 'git', ['status', '--porcelain']), '');
