@@ -9,6 +9,62 @@ import { get, put, repo, run, snapshot, temp } from './helpers.mjs';
 
 const cli = (cwd, args, status = 0, release = source) => run(cwd, process.execPath, [join(release, 'bin/matt.mjs'), ...args], status);
 
+test('团队首次选择后端，新同事克隆后按相对路径复用文档，初始化不写入子仓', () => {
+  const work = temp('team-docs-'), ui = repo(work, 'ui', true), api = repo(work, 'api', false);
+  put(ui, 'spec/example.test.js', '// test directory'); snapshot(ui);
+  put(api, 'handbook/agents/issue-tracker.md', 'shared issue convention');
+  put(api, 'handbook/agents/domain.md', 'shared domain convention');
+  const docs = (...args) => JSON.parse(cli(work, ['docs', ...args]));
+  assert.equal(docs().status, 'unconfigured');
+  const choice = ['--owner', 'backend', '--agent-docs', 'handbook/agents', '--specs', 'requirements'];
+  assert.equal(docs(...choice).status, 'proposed');
+  assert.ok(!existsSync(join(api, '.matt-docs.json')));
+  docs(...choice, '--apply');
+  assert.deepEqual(JSON.parse(get(api, '.matt-docs.json')), { version: 1, agentDocs: 'handbook/agents', specs: 'requirements' });
+  snapshot(api);
+  const colleague = temp('colleague-');
+  for (const dir of [ui, api]) run(colleague, 'git', ['clone', '-q', dir, basename(dir)]);
+  const fresh = JSON.parse(cli(colleague, ['docs']));
+  assert.equal(fresh.source, join(colleague, 'api', '.matt-docs.json'));
+  assert.equal(fresh.specs, join(colleague, 'api', 'requirements'));
+  assert.equal(fresh.agentDocs, join(colleague, 'api', 'handbook', 'agents'));
+  cli(colleague, ['init', '--host', 'orca', '--apply']);
+  assert.match(cli(colleague, ['update', '--host', 'orca']), /changes=0/);
+  const actual = JSON.parse(run(ui, process.execPath, [join(colleague, '.matt/runtime/docs.mjs')]));
+  assert.equal(actual.specs, fresh.specs);
+  assert.ok(existsSync(join(actual.fallbackTemplates, 'shared.md')));
+  for (const role of ['ui', 'api']) assert.equal(run(join(colleague, role), 'git', ['status', '--porcelain']), '');
+  assert.ok(!existsSync(actual.specs));
+  assert.ok(!existsSync(join(colleague, 'spec')));
+  unlinkSync(fresh.source);
+  assert.match(cli(colleague, ['docs'], 1), /缺失/);
+});
+
+test('文档配置有歧义时列出实际目录，本机选择可复用，旧项目可跨仓继承约定', () => {
+  const work = temp('docs-choice-'), ui = repo(work, 'ui', true), api = repo(work, 'api', false);
+  const args = ['docs', '--owner', 'parent', '--local', '--agent-docs', 'api/handbook', '--specs', 'ui/product/specs'];
+  cli(work, [...args, '--apply']);
+  const local = JSON.parse(cli(work, ['docs']));
+  assert.equal(local.agentDocs, join(api, 'handbook'));
+  assert.equal(local.specs, join(ui, 'product', 'specs'));
+  const config = { version: 1, agentDocs: 'docs/agents', specs: 'spec' };
+  for (const repoRoot of [api, ui]) put(repoRoot, '.matt-docs.json', config);
+  const conflict = JSON.parse(cli(work, ['docs'], 2));
+  assert.equal(conflict.status, 'ambiguous');
+  assert.deepEqual(conflict.candidates.map(item => item.specs), [join(ui, 'spec'), join(api, 'spec')]);
+  assert.match(cli(work, ['init', '--host', 'orca', '--apply'], 1), /多份文档配置/);
+  cli(work, ['docs', '--owner', 'backend', '--apply']);
+  assert.equal(JSON.parse(cli(work, ['docs'])).specs, join(api, 'spec'));
+  assert.deepEqual(JSON.parse(get(ui, '.matt-docs.json')), config);
+  for (const invalid of ['../other', 'C:/external', '.git/hooks']) {
+    put(api, '.matt-docs.json', { ...config, specs: invalid });
+    assert.match(cli(work, ['docs'], 1), /路径/);
+  }
+  symlinkSync(ui, join(api, 'elsewhere'), process.platform === 'win32' ? 'junction' : 'dir');
+  put(api, '.matt-docs.json', { ...config, specs: 'elsewhere/spec' });
+  assert.match(cli(work, ['docs'], 1), /链接/);
+});
+
 test('两种模式保留父层约定；独立工作树各角色按完整引用读取父层工单，而非子仓同号单', () => {
   const work = temp('parent-matt-');
   const ui = repo(work, 'ui', true), api = repo(work, 'api', false);
@@ -65,6 +121,30 @@ test('仅开发：不安装 E2E 资产，仍可派单；预览和切换模式不
   for (const file of assets) assert.equal(get(work, file), `local: ${file}`);
   assert.equal(get(work, '.matt/sessions.json'), sessions);
   assert.equal(get(work, 'spec/ticket.md'), spec);
+});
+
+test('按 Orca 指南首次安装直接采用团队默认值，重复运行沿用项目选择', () => {
+  const work = temp('orca-onboarding-'); repo(work, 'ui', true); repo(work, 'api', false);
+  const init = ['init', '--host', 'orca'];
+  const plan = () => JSON.parse(run(work, process.execPath, ['.matt/runtime/run.mjs', 'plan']));
+  assert.match(cli(work, init), /e2e.enabled=false.*e2e.provider=orca/);
+  assert.ok(!existsSync(join(work, '.matt')));
+  cli(work, [...init, '--apply']);
+  assert.deepEqual(plan(), { enabled: false, provider: 'orca' });
+  const roles = JSON.parse(run(work, process.execPath, ['.matt/runtime/sessions.mjs', '--host', 'orca']));
+  for (const [role, settings] of Object.entries(roles)) {
+    assert.equal(settings.worktree, ['frontend', 'backend'].includes(role));
+    assert.equal(settings.modelSource, 'bot-default');
+    assert.equal(settings.model, null);
+  }
+  assert.match(cli(work, init), /changes=0/);
+  const sessions = '.matt/sessions.json';
+  put(work, sessions, { version: 1, roles: { frontend: { model: 'team-model', worktree: false } } });
+  const local = get(work, sessions);
+  cli(work, ['update', '--host', 'orca', '--e2e', 'on', '--e2e-provider', 'midscene', '--apply']);
+  assert.match(cli(work, [...init, '--apply']), /changes=0/);
+  assert.equal(get(work, sessions), local);
+  assert.deepEqual(plan(), { enabled: true, provider: 'midscene' });
 });
 
 test('Orca 首次启用走原生浏览器；切换工具和开关互相独立，Midscene 资产可复用', () => {

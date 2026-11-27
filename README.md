@@ -6,11 +6,11 @@
 
 **首次接入**：在前后端的共同父目录单开环境会话：「请按 [AI_SETUP.md](AI_SETUP.md) 初始化，仅开发。」`matt init` 安装派单工具；随后在**同一父目录**按提示显式运行一次 `$mattpocock-skills:setup-matt-pocock-skills`，确认两端共用的工单和领域文档约定。已有父层配置直接复用，不在子仓重复初始化。
 
-**可选 E2E**：首次未指定模式时会询问一次，选择保存在 `.matt/workflow.json`。已接入 Orca 团队的项目首次开启时默认用原生浏览器。已有 Midscene 项目继续执行原 YAML；可用 `--e2e-provider orca|midscene` 显式选择。以后可用 `update --e2e on|off --apply` 切换，不影响 Matt 工程约定。
+**可选 E2E**。通用安装首次未指定模式时会询问一次。Orca 团队首次安装默认关闭 E2E，预设原生浏览器。选择保存在 `.matt/workflow.json`。已有 Midscene 项目继续执行原 YAML，可用 `--e2e-provider orca|midscene` 显式选择。以后可用 `update --e2e on|off --apply` 切换。
 
 **日常开发**：环境就绪后，在同一父目录新开需求会话，例如：`$matt-full-stack 让客服能在工单列表领取待处理工单，刷新后仍能看到处理人。`
 
-**Orca bot 团队**：按 [Orca 安装指南](ORCA_SETUP.md)，在本仓库执行 `node bin/matt-orca.mjs plan --workspace <消费父目录>`。安装器提供 `plan / apply / doctor`，同步主控、前端、后端和质量四个 bot 的职责与 skills，支持创建卡片、目录登记、冲突检测和重复升级。模型优先使用本次派单指定值，其次角色配置；未指定时使用接单 bot 自身的默认模型。
+**Orca bot 团队**。把仓库交给能访问本机终端的 AI，输入「按照文档 ORCA_SETUP.md 配置好环境」。AI 先查父目录和前后端仓根目录的 `.matt-docs.json`，复用团队共享约定和规格路径。首次选择后端仓时，可将配置随该仓提交；新成员克隆后直接初始化本机。AI 在原会话汇报路径、登记和校验结果。新团队默认前后端各用独立 worktree，模型默认使用接单 bot 自身设置。[Orca 安装指南](ORCA_SETUP.md)
 
 新功能先澄清影响行为的业务决定，再请你评审 `spec/<需求名>/` 的公共 spec 和涉及端的 spec。需求已经写清楚也会停在评审这一步。启用 E2E 时，Quality（其他宿主由父层验收会话）先从草案写具名用例，业务预期在同一次评审确认。你确认「按这版开发」后才派单：前端读 `shared.md` 和 `frontend.md`，后端读 `shared.md` 和 `backend.md`。父会话汇总交接和验收，不要求你另开会话或再调用 `grill-with-docs`。
 

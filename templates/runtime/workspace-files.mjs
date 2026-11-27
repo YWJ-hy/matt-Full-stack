@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 export const encode = value => JSON.stringify(value, null, 2) + '\n';
 export const digest = text => text === null ? null : createHash('sha256').update(text.replaceAll('\r\n', '\n')).digest('hex');
 
-export function safePath(root, name) {
+export function safePath(root, name, { directory = false } = {}) {
   if (isAbsolute(name) || name.split(/[\\/]/).some(part => !part || ['.', '..'].includes(part))) throw new Error(`无效受管路径：${name}`);
   let path = resolve(root);
   const rootStat = lstatSync(path);
@@ -16,7 +16,8 @@ export function safePath(root, name) {
     path = join(path, part);
     const stat = lstatSync(path, { throwIfNoEntry: false });
     if (!stat) continue;
-    if (stat.isSymbolicLink() || (index === parts.length - 1 ? !stat.isFile() : !stat.isDirectory() || existsSync(join(path, '.git')))) throw new Error(`拒绝链接、子仓或类型不符的路径：${path}`);
+    const wantFile = index === parts.length - 1 && !directory;
+    if (stat.isSymbolicLink() || (wantFile ? !stat.isFile() : !stat.isDirectory() || existsSync(join(path, '.git')))) throw new Error(`拒绝链接、子仓或类型不符的路径：${path}`);
   }
   return path;
 }

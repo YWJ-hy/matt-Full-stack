@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { source, version } from '../release.mjs';
 import { skillSources } from '../matt-skills.mjs';
 import { systemEnv } from '../../templates/runtime/system-env.mjs';
+import { documentLocations } from '../../templates/runtime/docs.mjs';
 import { parseWorkflow, savedProvider } from '../../templates/runtime/workflow.mjs';
 import { digest, encode, json, read, soulSection } from './files.mjs';
 import { inventory } from './cli.mjs';
@@ -89,14 +90,14 @@ export function bootstrap(root, config) {
   return `团队 ${config.projectId}：先在 Orca 创建名为 ${config.bots.matt} 的主控 bot。\n在它的会话中发送：请从你自己的 bot home 执行以下安装命令，按回执完成团队安装与目录登记，安装后报告待处理项。\n${installerCommand(root)}\n其他 bot 接受创建后，也从各自 home 执行同一命令。已有绑定后可从普通终端升级。\n`;
 }
 
-function desiredFiles(root, config, role, repos) {
+function desiredFiles(root, config, role, repos, documents) {
   const purpose = team.roles[role].purpose;
   const files = {
     'SOUL.md': `## Matt 项目职责\n\n${purpose}\n\n本项目的需求、开发、审查、验收及团队就绪检查，先读取 skills/matt-orca/SKILL.md；角色、项目位置与协作对象见该 skill 的 project.json。模型规则以该 skill 为准。`,
     'skills/matt-orca/SKILL.md': read(source, 'templates/orca/SKILL.md'),
     'skills/matt-orca/role.md': read(source, `templates/orca/roles/${role}.md`),
     'skills/matt-orca/references/protocol.md': read(source, 'templates/orca/protocol.md'),
-    'skills/matt-orca/project.json': encode({ version: 1, role, projectId: config.projectId, workspaceRoot: root, installer: join(source, 'bin/matt-orca.mjs'), bots: config.bots, repos }),
+    'skills/matt-orca/project.json': encode({ version: 1, role, projectId: config.projectId, workspaceRoot: root, installer: join(source, 'bin/matt-orca.mjs'), bots: config.bots, repos, documents }),
   };
   for (const skill of team.roles[role].skills) {
     const entry = Object.entries(skillSources).find(([path]) => path.endsWith(`/${skill}`));
@@ -111,6 +112,9 @@ export function buildPlan({ root, client, cwd = process.cwd(), homes = botRoot()
   if (samePath(root, source)) throw new Error('请选择已初始化的消费工作区父目录，不是工具包仓库');
   const config = configuration(root);
   const state = loadState(root, config);
+  const layout = documentLocations(root, json(root, '.matt/workspace.json'));
+  if (layout.status === 'ambiguous') throw new Error('存在多份文档路径配置，请用 matt docs 核对候选，按已确认的位置选择 --owner');
+  const documents = { agentDocs: layout.agentDocs, specs: layout.specs, fallbackTemplates: layout.fallbackTemplates, source: layout.source };
   const { e2e } = parseWorkflow(read(root, '.matt/workflow.json') ?? '');
   const runtime = join(root, '.matt/runtime/sessions.mjs');
   if (!existsSync(runtime)) throw new Error('请先用 matt init 初始化消费工作区');
@@ -121,8 +125,12 @@ export function buildPlan({ root, client, cwd = process.cwd(), homes = botRoot()
   const repos = projectRepos(root, config, listing.repos);
   const pending = [], changes = [], conflicts = [], bots = [];
   const conventions = read(root, 'CLAUDE.md') ?? read(root, 'AGENTS.md') ?? '';
-  if (!/^## Agent skills\s*$/m.test(conventions)) pending.push({ kind: 'conventions', detail: '父目录尚未登记 Agent skills 共享约定，请按 AI_SETUP.md 完成环境接入' });
-  for (const path of ['.matt/AI_SETUP.md', '.matt/runtime/tasks.mjs', '.matt/runtime/workspace-files.mjs', '.agents/skills/matt-full-stack/SKILL.md', ...['dispatch', 'review', 'worktrees', 'issues', 'acceptance', 'tasks', 'claims'].map(name => `.agents/skills/matt-full-stack/references/${name}.md`)]) {
+  if (layout.source) {
+    for (const name of ['issue-tracker.md', 'domain.md']) {
+      if (!existsSync(documents.agentDocs) || !read(documents.agentDocs, name)?.trim()) pending.push({ kind: 'conventions', detail: `缺少共享约定：${join(documents.agentDocs, name)}；请核对分支和已选路径` });
+    }
+  } else if (!/^## Agent skills\s*$/m.test(conventions)) pending.push({ kind: 'conventions', detail: '父目录尚未登记 Agent skills 共享约定，请按 AI_SETUP.md 完成环境接入' });
+  for (const path of ['.matt/AI_SETUP.md', '.matt/runtime/tasks.mjs', '.matt/runtime/workspace-files.mjs', '.matt/runtime/docs.mjs', '.agents/skills/matt-full-stack/SKILL.md', ...['dispatch', 'review', 'worktrees', 'issues', 'acceptance', 'tasks', 'claims'].map(name => `.agents/skills/matt-full-stack/references/${name}.md`)]) {
     if (!read(root, path)?.trim()) pending.push({ kind: 'workspace-assets', detail: `父层工作流文件缺失或为空：${path}；请用 matt update 修复` });
   }
   for (const [role, repo] of Object.entries(repos)) if (!repo.selector) pending.push({ kind: 'repo', role, detail: `apply 将注册 ${repo.checkout}` });
@@ -163,7 +171,7 @@ export function buildPlan({ root, client, cwd = process.cwd(), homes = botRoot()
     if (marker !== null && digest(marker) !== digest(encode(identity))) throw new Error(`${home} 已绑定其他项目或角色，请核对 ${markerPath}`);
     if (saved && marker === null) throw new Error(`${home} 缺少身份标记，请恢复绑定后再升级`);
     if (!saved && marker === null) changes.push({ root: home, path: markerPath, old: null, next: encode(identity), action: 'bind', role });
-    const files = desiredFiles(root, config, role, repos), hashes = {};
+    const files = desiredFiles(root, config, role, repos, documents), hashes = {};
     for (const [path, content] of Object.entries(files)) {
       const old = read(home, path);
       const section = path === 'SOUL.md' ? soulSection(old, content) : { current: old, fresh: content, next: content };
@@ -178,9 +186,9 @@ export function buildPlan({ root, client, cwd = process.cwd(), homes = botRoot()
     if (!saved || digest(encode(saved.files)) !== digest(encode(hashes))) pending.push({ kind: 'registration', role, detail: `${name} 需要 apply 登记当前文件版本` });
     if (bot.paused) pending.push({ kind: 'paused', role, detail: `${name} 在 Orca 中已暂停` });
   }
-  return { root, config, state, e2e: e2e.enabled, e2eProvider: savedProvider(e2e) ?? null, repos, sessions, callerRole, bots, changes, conflicts, pending, bootstrap: bootstrap(root, config) };
+  return { root, config, state, documents, e2e: e2e.enabled, e2eProvider: savedProvider(e2e) ?? null, repos, sessions, callerRole, bots, changes, conflicts, pending, bootstrap: bootstrap(root, config) };
 }
 
 export function report(plan) {
-  return { workspaceRoot: plan.root, projectId: plan.config.projectId, e2e: plan.e2e, e2eProvider: plan.e2eProvider, config: plan.config, repos: plan.repos, sessions: plan.sessions, callerRole: plan.callerRole, bots: plan.bots.map(({ files, ...bot }) => bot), changes: plan.changes.map(({ root, path, action, role }) => ({ path: join(root, path), action, ...(role ? { role } : {}) })), conflicts: plan.conflicts, pending: plan.pending, bootstrap: plan.bootstrap };
+  return { workspaceRoot: plan.root, projectId: plan.config.projectId, documents: plan.documents, e2e: plan.e2e, e2eProvider: plan.e2eProvider, config: plan.config, repos: plan.repos, sessions: plan.sessions, callerRole: plan.callerRole, bots: plan.bots.map(({ files, ...bot }) => bot), changes: plan.changes.map(({ root, path, action, role }) => ({ path: join(root, path), action, ...(role ? { role } : {}) })), conflicts: plan.conflicts, pending: plan.pending, bootstrap: plan.bootstrap };
 }

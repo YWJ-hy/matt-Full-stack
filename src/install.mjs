@@ -2,11 +2,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { isUtf8 } from 'node:buffer';
 import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { blocks, e2eManaged, e2eSeeds, managed, seeds, source, version } from './release.mjs';
+import { blocks, e2eManaged, e2eSeeds, managed, seeds, source, specTemplates, version } from './release.mjs';
 import { discover } from './discover.mjs';
 import { skillSources } from './matt-skills.mjs';
 import { askE2e } from './e2e-option.mjs';
 import { parseWorkflow, savedProvider, validateProvider, workflowPath } from '../templates/runtime/workflow.mjs';
+import { documentLocations, localChoice, marker } from '../templates/runtime/docs.mjs';
 
 const statePath = '.matt/manifest.json';
 const encode = value => JSON.stringify(value, null, 2) + '\n';
@@ -62,7 +63,7 @@ function atomicWrite(root, name, text) {
   } finally { if (existsSync(temp)) unlinkSync(temp); }
 }
 
-function sync(root, command, apply, keep, requestedE2e, requestedProvider) {
+function sync(root, command, apply, keep, requestedE2e, requestedProvider, host) {
   const previous = read(root, statePath);
   const state = previous === null ? { format: 1, version: '0.0.0', files: {} } : JSON.parse(previous);
   if (state.format !== 1 || !state.files || !/^\d+\.\d+\.\d+$/.test(state.version)) throw new Error('无法识别清单，请先检查其版本或恢复清单');
@@ -76,6 +77,7 @@ function sync(root, command, apply, keep, requestedE2e, requestedProvider) {
   const enabled = requestedE2e ?? workflow.e2e.enabled;
   let provider = requestedProvider ?? savedProvider(workflow.e2e);
   if (!provider && seeded.has('e2e/matt.config.mjs')) provider = 'midscene';
+  if (!provider && host === 'orca') provider = 'orca';
   if (!provider && enabled) provider = existsSync(safePath(root, '.matt/orca.json')) ? 'orca' : 'midscene';
   if (oldWorkflow === null || enabled !== workflow.e2e.enabled || provider !== workflow.e2e.provider) {
     workflow.e2e.enabled = enabled;
@@ -136,7 +138,22 @@ function sync(root, command, apply, keep, requestedE2e, requestedProvider) {
     for (const change of removals) { changes.push(change); retired.delete(change.name); }
   }
   for (const name of retired) console.log(`retired (保留原文件，停止管理) ${name}`);
-  for (const [name, src] of Object.entries({ ...seeds, ...(useMidscene ? e2eSeeds : {}), '.matt/workspace.json': null })) {
+  const projectSeeds = { ...seeds, ...(useMidscene ? e2eSeeds : {}), '.matt/workspace.json': null };
+  const localDocs = read(root, localChoice);
+  const useLocalTemplates = host === 'orca' || seeded.has('.matt/spec-templates/shared.md') || localDocs !== null ||
+    existsSync(safePath(root, '.matt/orca.json')) || existsSync(safePath(root, marker)) ||
+    discover(root).candidates.some(({ repo }) => existsSync(join(root, repo, marker)));
+  if (useLocalTemplates) {
+    const file = read(root, '.matt/workspace.json');
+    const mapping = file === null ? discover(root).config : JSON.parse(file.replace(/^\uFEFF/, ''));
+    const docs = documentLocations(root, mapping);
+    if (docs.status === 'ambiguous') throw new Error('存在多份文档配置，请先用 matt docs 查看候选并选择 --owner');
+    if (localDocs === null && docs.source) changes.push({ action: 'seed', name: localChoice, old: null, next: encode({ expectedOwner: docs.owner }) });
+  }
+  const templates = useLocalTemplates ? '.matt/spec-templates' : 'spec/_templates';
+  for (const name of specTemplates) projectSeeds[`${templates}/${name}`] = `templates/spec/${name}`;
+  if (host === 'orca') projectSeeds['.matt/sessions.json'] = 'templates/orca/sessions.json';
+  for (const [name, src] of Object.entries(projectSeeds)) {
     if (!seeded.has(name) && !existsSync(safePath(root, name))) changes.push({ name, old: null, next: src ? template(src) : encode(discover(root).config), action: 'seed' });
     seeded.add(name);
   }
@@ -153,17 +170,22 @@ function sync(root, command, apply, keep, requestedE2e, requestedProvider) {
   return workflow.e2e;
 }
 
-export async function install(root, command, apply, keep, requestedE2e, requestedProvider) {
+export async function install(root, command, apply, keep, requestedE2e, requestedProvider, host) {
+  if (host !== undefined && host !== 'orca') throw new Error('--host 仅支持 orca；其他宿主省略该参数');
   validateProvider(requestedProvider);
   const fresh = !existsSync(safePath(root, statePath));
   if (fresh && discover(root).candidates.length < 2) throw new Error('首次安装需要在包含至少两个独立 Git 子仓库的共同父目录执行');
-  if (!apply) return sync(root, command, false, keep, requestedE2e, requestedProvider);
-  if (fresh && command === 'init' && requestedE2e === undefined && !existsSync(safePath(root, workflowPath))) requestedE2e = await askE2e();
+  if (!apply) return sync(root, command, false, keep, requestedE2e, requestedProvider, host);
+  if (host !== 'orca' && fresh && command === 'init' && requestedE2e === undefined && !existsSync(safePath(root, workflowPath))) requestedE2e = await askE2e();
+  return withInstallLock(root, () => sync(root, command, true, keep, requestedE2e, requestedProvider, host));
+}
+
+export function withInstallLock(root, operation) {
   const lock = safePath(root, '.matt/install.lock');
   mkdirSync(dirname(lock), { recursive: true });
   const fd = openSync(lock, 'wx');
   try {
     writeFileSync(fd, String(process.pid));
-    return sync(root, command, true, keep, requestedE2e, requestedProvider);
+    return operation();
   } finally { closeSync(fd); unlinkSync(lock); }
 }

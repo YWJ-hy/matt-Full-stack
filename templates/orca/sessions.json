@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "roles": {
+    "frontend": { "worktree": true },
+    "backend": { "worktree": true },
+    "standards": { "worktree": false },
+    "spec": { "worktree": false }
+  }
+}

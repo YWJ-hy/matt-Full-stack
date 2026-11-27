@@ -6,6 +6,8 @@
 
 ## 1. 确认边界，预览再安装
 
+Orca bot 团队按 [ORCA_SETUP.md](ORCA_SETUP.md) 的 `--host orca` 流程执行。该入口已指定首次安装默认值，项目约定可在同一会话补齐，父目录就绪后继续登记 bot。下文的首次模式选择适用于通用安装。
+
 首次接入且尚无选择时，先问用户：「只做开发派单（推荐），还是同时启用浏览器 E2E？」用户已说明则直接采用。交互终端也会在首次 `init --apply` 询问；非交互环境须传 `--e2e off` 或 `--e2e on`。已有配置直接沿用，升级见第 5 节。已接入 Orca 团队的工作区首次开启时默认选 Orca；团队配置尚未创建时，初始化用 `--e2e on --e2e-provider orca`。普通工作区默认使用 Midscene。
 
 在**消费父目录**启动终端；定位本地工具包。下例是 PowerShell（所选模式为仅开发；启用 E2E 时将两条命令的 `off` 改为 `on`）：
@@ -27,7 +29,7 @@ node $matt init
 
 ### 配置父目录的 Matt 工程约定（两种模式共用）
 
-在**两个业务仓库的共同父目录**检查原版 setup 的产物：`CLAUDE.md`（没有则看 `AGENTS.md`）的 `## Agent skills` 段，以及它引用的 `docs/agents/issue-tracker.md`、`docs/agents/domain.md`；使用 `triage` 时还需 `docs/agents/triage-labels.md`。读到本项目的工单归属和领域文档布局即可复用，不要求预先创建空术语表或 ADR。
+先在共同父目录运行 `node .matt/runtime/docs.mjs`。已配置时，`agentDocs` 是工单和领域约定目录，`specs` 是共享规格目录，后文的文档路径均按这两个位置解析。需要识别已有布局或首次选择文档所在仓库时，按 [ORCA_SETUP.md](ORCA_SETUP.md) 第 1 节的 `matt docs` 步骤操作。沿用旧父目录布局时，在**两个业务仓库的共同父目录**检查原版 setup 的产物：`CLAUDE.md`（没有则看 `AGENTS.md`）的 `## Agent skills` 段，以及它引用的 `docs/agents/issue-tracker.md`、`docs/agents/domain.md`；使用 `triage` 时还需 `docs/agents/triage-labels.md`。读到本项目的工单归属和领域文档布局即可复用，不要求预先创建空术语表或 ADR。
 
 缺失或不完整时，请用户在**同一环境会话**显式发送 `$mattpocock-skills:setup-matt-pocock-skills`。这是交互式 skill，不是 shell 命令：先确认选择和草案，再写入父目录；保留已有内容，`## Agent skills` 放在 `matt-full-stack` 受管标记之外。不要到工具包、前端或后端重复运行。若宿主没有该 skill，提示启用原版插件后继续，不能把 `init --apply` 或 Midscene 自测当作替代。
 

@@ -6,7 +6,7 @@ export const source = fileURLToPath(new URL('../', import.meta.url));
 export const version = JSON.parse(readFileSync(join(source, 'package.json'))).version;
 const runtimeFiles = names => Object.fromEntries(names.map(name => [`.matt/runtime/${name}`, `templates/runtime/${name}`]));
 export const managed = {
-  ...runtimeFiles(['run.mjs', 'workflow.mjs', 'system-env.mjs', 'sessions.mjs', 'tasks.mjs', 'workspace-files.mjs']),
+  ...runtimeFiles(['run.mjs', 'workflow.mjs', 'system-env.mjs', 'sessions.mjs', 'tasks.mjs', 'workspace-files.mjs', 'docs.mjs']),
   '.matt/AI_SETUP.md': 'AI_SETUP.md',
   '.matt/ORCA_SETUP.md': 'ORCA_SETUP.md',
   '.agents/skills/matt-full-stack/SKILL.md': 'templates/matt-full-stack/SKILL.md',
@@ -23,10 +23,8 @@ export const e2eManaged = {
   '.matt/model.env.example': 'templates/model.env.example',
 };
 export const blocks = { 'AGENTS.md': 'templates/instructions.md', '.gitignore': 'templates/ignores.txt' };
-export const seeds = {
-  '.matt/sessions.json': 'templates/sessions.json',
-  ...Object.fromEntries(['shared.md', 'frontend.md', 'backend.md', 'delivery.md', 'tasks.md'].map(name => [`spec/_templates/${name}`, `templates/spec/${name}`])),
-};
+export const seeds = { '.matt/sessions.json': 'templates/sessions.json' };
+export const specTemplates = ['shared.md', 'frontend.md', 'backend.md', 'delivery.md', 'tasks.md'];
 export const e2eSeeds = {
   'e2e/matt.config.mjs': 'templates/matt.config.mjs',
   'e2e/login.mjs': 'templates/login.mjs',

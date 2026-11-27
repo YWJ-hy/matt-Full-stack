@@ -101,6 +101,22 @@ function installAll(f) {
   return homes;
 }
 
+test('四个 bot 和 doctor 使用同一后端文档目录，规则缺失指出具体路径，规格可按需创建', () => {
+  const f = fixture();
+  put(f.backend, '.matt-docs.json', { version: 1, agentDocs: 'policy', specs: 'requirements' });
+  put(f.backend, 'policy/issue-tracker.md', 'Project tracker');
+  const homes = installAll(f);
+  const pending = doctor(f.options());
+  assert.equal(pending.status, 'pending');
+  assert.ok(pending.pending.some(item => item.detail.includes(join(f.backend, 'policy', 'domain.md'))));
+  put(f.backend, 'policy/domain.md', 'Project domain layout');
+  const ready = doctor(f.options());
+  assert.equal(ready.status, 'ready');
+  assert.equal(ready.documents.specs, join(f.backend, 'requirements'));
+  for (const home of Object.values(homes)) assert.deepEqual(JSON.parse(get(home, 'skills/matt-orca/project.json')).documents, ready.documents);
+  assert.ok(!existsSync(ready.documents.specs));
+});
+
 test('依赖返修换版后，旧派单和间接下游都需重新核对；仅追加会话或回执不影响版本', () => {
   const f = fixture(), entry = join(f.root, '.matt/runtime/tasks.mjs');
   const call = (...args) => JSON.parse(run(f.root, process.execPath, [entry, ...args]));

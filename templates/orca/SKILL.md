@@ -3,7 +3,7 @@ name: matt-orca
 description: 在 Orca bot 团队中处理 Matt 项目的需求、分端开发、独立审查、验收或团队就绪检查。
 ---
 
-读取本 skill 的 `project.json`，其中 `workspaceRoot` 是消费项目的共同父目录，`role` 是本 bot 的职责，`installer` 是工具包入口。读取父目录的 `CLAUDE.md`（没有则 `AGENTS.md`）及 Agent skills 约定，再按 [本角色步骤](role.md) 工作。任务交接遵循 [Orca 交接协议](references/protocol.md)。
+读取本 skill 的 `project.json`，其中 `workspaceRoot` 是消费项目的共同父目录，`role` 是本 bot 的职责，`installer` 是工具包入口。从 `workspaceRoot` 运行 `node .matt/runtime/docs.mjs`，核对输出与 `project.json` 的 `documents`。用解析出的 `agentDocs` 和 `specs` 访问同一份工程约定、需求、用例和交接，即使 worker 在另一仓库的工作树中也使用这些绝对路径。旧父目录布局按 `CLAUDE.md`（没有则 `AGENTS.md`）的 Agent skills 约定，再按 [本角色步骤](role.md) 工作。任务交接遵循 [Orca 交接协议](references/protocol.md)。
 
 ## 先检查安装
 

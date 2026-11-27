@@ -19,6 +19,7 @@ try {
     if (values.json) console.log(JSON.stringify(result, null, 2));
     else {
       console.log(`${command}: ${result.status} · ${result.projectId}`);
+      console.log(`共享工程约定 ${result.documents.agentDocs}\n需求规格 ${result.documents.specs}`);
       for (const bot of result.bots) console.log(`${bot.role}: ${bot.name} · ${bot.status}${bot.home ? ` · ${bot.home}` : ''}`);
       for (const item of result.applied ?? []) console.log(`applied ${item.action} ${item.path ?? item.name}`);
       for (const item of result.changes) console.log(`${item.action} ${item.path}`);

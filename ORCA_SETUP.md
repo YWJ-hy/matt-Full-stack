@@ -1,16 +1,57 @@
 # 安装 Orca bot 团队
 
-本仓库是工具包；`--workspace` 始终指向前后端两个 Git 仓库的共同父目录。第一版安装到本机 Orca，一组项目对应 Matt、Frontend、Backend、Quality 四个 bot。项目约定、spec、交付和 E2E 配置都保存在消费父目录。新团队可在 `matt init` 时用 `--e2e on --e2e-provider orca`；已有团队从仅开发模式首次开启可用 `matt update --e2e on --apply`。已启用 Midscene 的老项目继续用原 YAML。
+在能访问本机项目和终端的 AI 会话中输入：
+
+> 按照文档 ORCA_SETUP.md 配置好环境
+
+收到这句话后，AI 按下列步骤完成本机安装。新工作区直接采用团队默认值：前端和后端各用独立 worktree，未显式指定模型时使用接单 bot 自身默认模型，E2E 关闭，执行工具预设为 Orca 原生浏览器。安装结束时汇报这些设置，无需逐项询问。有明确的项目配置或用户给出的覆盖值时沿用实际选择。
 
 ## 1. 准备与预览
 
 需要 Node 22.12+、Git，以及正在运行、支持 `bot create --offer` 的 Orca。安装器使用 `ORCA_CLI_COMMAND` 指定的可执行文件；开发环境使用 `orca-dev`，其他 Linux 环境使用 `orca-ide`，其余平台使用 `orca`。调用固定到本机，不跟随环境中的远程服务器选择。
 
-先按 `AI_SETUP.md` 初始化消费工作区并完成父层共享工程约定。旧工作区先执行工具包的 `matt update --apply`，使会话解析器支持 Orca 模式。然后在本工具包根目录运行：
+先从当前会话的项目路径和已有 `.matt/workspace.json` 定位两个业务 Git 仓的共同父目录。找不到或有多个候选时，只问共同父目录或两个仓的路径。从工具包根目录运行以下 PowerShell 命令，将示例路径换成本机实际路径。AI 核对每次预览后直接继续。
 
 ```powershell
-node bin/matt-orca.mjs plan --workspace 'D:\projects\ticket'
-node bin/matt-orca.mjs apply --workspace 'D:\projects\ticket'
+$project = 'D:\projects\ticket'
+node bin/matt.mjs discover --workspace "$project"
+node bin/matt.mjs docs --workspace "$project"
+```
+
+先核对前后端映射。角色不唯一时，根据用户确认的两个直接子仓补齐父目录 `.matt/workspace.json`，再运行 `docs`。此命令只读检查父目录和两个已映射仓的根目录。
+
+| 文档发现结果 | AI 的下一步 |
+|---|---|
+| `configured` | 复用输出的 `agentDocs` 和 `specs`。即使 `specs` 还没有需求，也沿用选定位置。 |
+| `ambiguous` | 列出含 `.matt-docs.json` 的实际仓库和路径。用户选定后用 `docs --owner <角色> --apply` 保存本机选择。 |
+| `unconfigured` | 阅读候选位置的 CLAUDE.md、AGENTS.md 和其链接。若已有明确的共享文档约定，按下文用 `--local` 记下已有路径。同名目录仅作线索，例如后端的 `spec/` 可能是测试。仍有歧义就列出候选请用户选一次。 |
+
+全新团队若有团队管理的父目录 Git 仓，默认选择 `parent`。父目录无仓且没有明确约定时，只问「共享工程约定和需求规格放在前端仓、后端仓，还是仅在本机父目录试用？」选前端用 `frontend`，选后端用 `backend`，仅本机试用用 `--owner parent --local`。例如团队首次选后端，AI 执行以下两条：
+
+```powershell
+node bin/matt.mjs docs --workspace "$project" --owner backend
+node bin/matt.mjs docs --workspace "$project" --owner backend --apply
+```
+
+这会在后端仓根目录创建可随项目提交的 `.matt-docs.json`，内容如 `{"version":1,"agentDocs":"docs/agents","specs":"spec"}`。两个目录相对配置文件位置，创建配置无需提前生成规格目录。首次接入时把待共享的配置和新增约定列给用户。新成员克隆已有配置后直接使用；本机安装状态由工具写入共同父目录。
+
+旧项目已在项目说明中明确位置时，例如「约定在后端的 handbook/agents，规格在前端的 requirements」，用 `docs --owner parent --local --agent-docs <后端仓名>/handbook/agents --specs <前端仓名>/requirements --apply` 记录路径。两者同仓时也可选相应角色并使用仓内相对路径。已有文档直接复用，迁移文件单独处理。
+
+在解析出的 `agentDocs` 核对 `issue-tracker.md` 与 `domain.md`。首次建立约定时，在当前会话确认工单和领域文档位置后写入。新同事接入已有配置时，若约定缺失，先指出缺失文件、核对分支或路径；避免用新文件覆盖团队约定。用户点名原版 setup skill 时按 [AI_SETUP.md](AI_SETUP.md) 的显式调用步骤执行。
+
+文档位置就绪后继续安装：
+
+```powershell
+$operation = if (Test-Path (Join-Path $project '.matt/manifest.json')) { 'update' } else { 'init' }
+node bin/matt.mjs $operation --host orca --workspace "$project"
+node bin/matt.mjs $operation --host orca --workspace "$project" --apply
+```
+
+后续从任何 checkout 发起任务，均从父目录运行 `node .matt/runtime/docs.mjs`（或调用该脚本的绝对路径）取得共享位置。项目自有模板可放在 `<specs>/_templates/`，没有对应模板时使用本机的 `fallbackTemplates`。第一份需求起草时才创建需求目录。
+
+```powershell
+node bin/matt-orca.mjs plan --workspace "$project"
+node bin/matt-orca.mjs apply --workspace "$project"
 ```
 
 `plan` 只读，不创建文件或 bot。首次 `apply` 保存项目配置、注册缺失的本机 Orca 前后端项目，并生成 `.matt/private/orca-bootstrap.md`。普通终端没有 bot 会话身份，因此这一步会报告待创建及退出码 2，属于可继续的安装状态。
@@ -38,7 +79,7 @@ node bin/matt-orca.mjs apply --workspace 'D:\projects\ticket'
 
 ## 2. 创建与登记
 
-1. 按预览输出的**准确名字**在 Orca 中创建主控 bot。
+1. 已有对应主控 bot 时直接进入其聊天。首次创建时，告诉用户预览输出的**准确名字**及在 Orca 中需要执行的操作。
 2. 在主控会话发送 `.matt/private/orca-bootstrap.md` 的启动说明。让它从自己的 bot home 执行说明中的绝对路径安装命令。安装器根据 `orca bot list` 的 `self` 标识登记调用者，并为另外三个缺失 bot 提出创建卡片。
 3. 接受创建卡片。每个 bot 都要在自己的会话中，从自己的 home 执行一次同一条 `apply` 命令。卡片说明包含该命令；可直接让 bot 按说明完成登记。
 4. 所有 bot 登记后，从普通终端或主控会话运行 `doctor`。
@@ -50,8 +91,8 @@ Orca 官方 `bot create --offer` 只提出卡片，接受后才创建。创建�
 ## 3. 校验与使用
 
 ```powershell
-node bin/matt-orca.mjs doctor --workspace 'D:\projects\ticket'
-node bin/matt-orca.mjs plan --workspace 'D:\projects\ticket' --json
+node bin/matt-orca.mjs doctor --workspace "$project" --json
+node bin/matt-orca.mjs plan --workspace "$project" --json
 ```
 
 `doctor` 校验项目映射、角色会话配置、bot 绑定和受管文件。退出码：
@@ -62,7 +103,7 @@ node bin/matt-orca.mjs plan --workspace 'D:\projects\ticket' --json
 | 1 | 配置错误、文件冲突或 Orca 调用失败 |
 | 2 | `apply / doctor` 还有待创建、待登记、待同步、已暂停或共享约定缺失等事项 |
 
-静态就绪后，让四个 bot 分别做一次「团队就绪检查」，报告实际项目、职责、资料入口与模型策略。最后向 Matt 发一张具体需求：起草 spec → 启用 E2E 时 Quality 预先设计用例 → 确认业务预期与 spec → 前后端独立实现 → Quality 的两轴审查 → 按项目选定的工具逐例验收 → 汇总交付和合回决定。只有具体需求已获开发授权时才派实现；安装不会启动产品开发。
+当 `doctor.status` 为 `ready` 且二次预览的 `changes`、`conflicts`、`pending` 均为空，在**发起安装的会话**总结：项目父目录、前后端仓库、documents.agentDocs 与 documents.specs 的实际路径、四个 bot 的实际名称与绑定状态、前后端各自的 worktree 设置、模型来源，以及 E2E 开关和预设执行工具。从 `doctor --json` 的 `sessions`、`e2e`、`e2eProvider` 读取实际值。示例结论为「四个 bot 已就绪。前后端各用独立工作树；模型默认使用接单 bot 自身设置；E2E 已关闭，预设 Orca 原生浏览器。」有待处理项时说明具体角色和所需操作，完成后继续校验。
 
 当前安装器同步角色说明、工作流和各角色需要的随包 Matt skills。外部连接器和事件自动化属于后续接入；已有 bot 的个人记忆、连接和默认模型由 Orca 维护。
 

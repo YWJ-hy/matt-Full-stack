@@ -5,7 +5,7 @@ description: 在独立前后端仓库的共同父目录协调排障、修复、�
 
 ## 先确定交付物
 
-日常入口是 `$matt-full-stack` 加需求描述。使用 Matt 工程 skill 前，读取共同父目录 `CLAUDE.md`（没有则读 `AGENTS.md`）的 `## Agent skills` 段及其共享约定。若缺少约定，请用户在父目录环境会话按 `.matt/AI_SETUP.md` 第 1 节完成原版 setup，不在子仓初始化。其他环境缺项或升级也交由环境会话处理，就绪后从阻塞步骤继续。
+日常入口是 `$matt-full-stack` 加需求描述。先运行共同父目录中的 `node .matt/runtime/docs.mjs`。已配置时，从 `agentDocs` 读取工单和领域约定，从 `specs` 读写需求、用例与交接。下文及引用指南的 `spec/` 均指这个解析出的目录。模板优先用该目录下项目自己的 `_templates/<文件>`，缺项从 `fallbackTemplates` 读取。出现多个候选时返回环境配置步骤。沿用旧布局时，读取共同父目录 `CLAUDE.md`（没有则读 `AGENTS.md`）的 `## Agent skills` 段及其共享约定。若缺少约定，请用户在父目录环境会话按 `.matt/AI_SETUP.md` 第 1 节完成原版 setup，不在子仓初始化。其他环境缺项或升级也交由环境会话处理，就绪后从阻塞步骤继续。
 
 优先采用用户点名的方法。自动流程只调用宿主允许模型调用的技能。若这类入口不可用，可读取工具包 `vendor/mattpocock/<短名>/SKILL.md` 及引用，注明是按随包参考执行；两者都不可用则报告缺项，停在该步骤。
 
