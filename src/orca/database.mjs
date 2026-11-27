@@ -14,11 +14,13 @@ export function planDatabase(root, bots, state, client, changes, conflicts, pend
     changes.push({ root, path: configPath, old: null, next: encode(emptyConfig), action: 'seed', mode: 0o600 });
   }
   const config = databaseConfig(root);
-  const enabledRoles = ['matt', 'backend', 'quality'].filter(role => connectionFor(config, role));
-  const result = { configPath: join(root, configPath), enabledRoles, bindings: [], installDependencies: false };
+  const developmentWrites = Boolean(config.developmentWriteConnectionString);
+  const enabledRoles = ['matt', 'backend', 'quality'].filter(role =>
+    connectionFor(config, role) || (developmentWrites && ['matt', 'backend'].includes(role)));
+  const result = { configPath: join(root, configPath), enabledRoles, developmentWrites, bindings: [], installDependencies: false };
   const entry = join(root, runtime, 'server.mjs');
   if (enabledRoles.length) {
-    for (const file of ['server.mjs', 'config.mjs', 'package.json', 'package-lock.json']) {
+    for (const file of ['server.mjs', 'config.mjs', 'development.mjs', 'confirmation.mjs', 'package.json', 'package-lock.json']) {
       if (!existsSync(safePath(root, runtime + '/' + file))) throw new Error('请先运行 matt update --apply 安装数据库 MCP 运行文件');
     }
     const hash = digest(read(root, runtime + '/package-lock.json'));

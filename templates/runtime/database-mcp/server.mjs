@@ -3,6 +3,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { connectionFor, databaseConfig } from './config.mjs';
+import { confirmDevelopmentSql, applyDevelopmentSql } from './development.mjs';
+import { confirmWithPerson } from './confirmation.mjs';
 
 const [root, role] = process.argv.slice(2);
 if (root === '--check-deps') process.exit(0);
@@ -68,5 +70,34 @@ tool('describe_table', '读取指定表的列、类型、默认值、可空性�
     ORDER BY k.conname`, params);
   return { found: true, schema, table, columns: columns.rows, constraints: constraints.rows };
 });
+
+const initial = databaseConfig(root);
+if (initial.developmentWriteConnectionString && role === 'matt') {
+  server.registerTool('confirm_dev_sql', {
+    description: '向人展示本需求的完整 SQL、目标开发库和影响，取得本次执行的批准编号。',
+    inputSchema: { requirement: z.string().min(1), file: z.string().min(1), impact: z.string().trim().min(1) },
+  }, async (args, { signal }) => {
+    const result = await confirmDevelopmentSql(root, args, review => confirmWithPerson(server.server, review, signal));
+    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+  });
+}
+if (initial.developmentWriteConnectionString && role === 'backend') {
+  server.registerTool('apply_dev_sql', {
+    description: '按 Matt 取得的单次人工批准执行固定版本的开发 SQL。重复调用返回同一回执。',
+    inputSchema: { approvalId: z.string().regex(/^[0-9a-f]{64}$/) }, annotations: { destructiveHint: true, idempotentHint: true },
+  }, async ({ approvalId }) => {
+    const result = await applyDevelopmentSql(root, approvalId, async (connectionString, sql) => {
+      const endpoint = new URL(connectionString);
+      if (!endpoint.port) endpoint.port = '5432';
+      const client = new pg.Client({ connectionString: endpoint.href, connectionTimeoutMillis: 5000 });
+      try {
+        await client.connect();
+        await client.query(sql);
+        if (client.getTransactionStatus() !== 'I') throw new Error('脚本结束时事务尚未提交');
+      } finally { await client.end().catch(() => {}); }
+    });
+    return { isError: result.status !== '执行成功', content: [{ type: 'text', text: JSON.stringify(result) }] };
+  });
+}
 
 await server.connect(new StdioServerTransport());

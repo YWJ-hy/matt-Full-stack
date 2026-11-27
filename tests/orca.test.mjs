@@ -11,6 +11,8 @@ import { buildPlan, configPath, markerPath, roles, statePath } from '../src/orca
 import { createClient, executable } from '../src/orca/cli.mjs';
 import { digest } from '../src/orca/files.mjs';
 import { get, put, repo, run, temp } from './helpers.mjs';
+import { applyDevelopmentSql, confirmDevelopmentSql } from '../templates/runtime/database-mcp/development.mjs';
+import { confirmWithPerson } from '../templates/runtime/database-mcp/confirmation.mjs';
 
 test('两入口竞争同一认领，部分批准与开发依赖受检，返修和占用中的原树可恢复', async () => {
   const f = fixture();
@@ -163,6 +165,84 @@ test('可选数据库绑定随角色登记、可重试并可撤下，连接信�
   assert.equal(toolsByBot.size, 0);
   put(f.root, path, '{"version":1,"connectionString":"secret"}');
   assert.throws(() => doctor(f.options()), error => !error.message.includes('secret') && error.message.includes('connectionString'));
+});
+
+test('开发库逐份审批绑定原始文件、项目位置和连接，重试及并发只执行一次', async () => {
+  const f = fixture();
+  const settings = '.matt/private/database.json';
+  const config = { version: 1, developmentWriteConnectionString: 'postgres://fixture:secret@localhost/dev' };
+  put(f.root, settings, config);
+  put(f.frontend, '.matt-docs.json', { version: 1, agentDocs: 'rules', specs: '产品需求' });
+  const args = { requirement: '预约', file: '01-add.sql', impact: '增加预约字段' };
+  const file = '产品需求/预约/delivery-sql/01-add.sql';
+  put(f.frontend, file, 'SELECT 1;\n');
+  const request = (input = args, confirm = () => true) => confirmDevelopmentSql(f.root, input, confirm);
+  await assert.rejects(request(), /delivery.md/);
+  put(f.frontend, '产品需求/预约/delivery.md', '# 交付');
+  for (const input of [{ ...args, file: '../other.sql' }, { ...args, file: 'dot.sql:extra.sql' }, { ...args, requirement: '_templates' }]) {
+    await assert.rejects(request(input), /文件名/);
+  }
+  let runs = 0;
+  const execute = (id, fn = () => runs++) => applyDevelopmentSql(f.root, id, fn);
+  await assert.rejects(execute('0'.repeat(64)), /缺少/);
+  assert.deepEqual(await request(args, () => false), { status: '未批准' });
+  assert.ok(!existsSync(join(f.root, '.matt/private/development-sql')));
+  const { approvalId } = await request(args, review => {
+    assert.equal(review.target, 'fixture@localhost:5432/dev');
+    assert.equal(review.sql, 'SELECT 1;\n');
+    assert.ok(!JSON.stringify(review).includes('secret'));
+    return true;
+  });
+  put(f.frontend, file, 'SELECT 2;\n');
+  await assert.rejects(execute(approvalId), /重新确认/);
+  put(f.frontend, file, 'SELECT 1;\n');
+  put(f.root, settings, { ...config, developmentWriteConnectionString: 'postgres://fixture:secret@localhost/dev2' });
+  await assert.rejects(execute(approvalId), /重新确认/);
+  put(f.root, settings, { version: 1 });
+  await assert.rejects(execute(approvalId), /尚未启用/);
+  put(f.root, settings, config);
+  let finish;
+  const first = execute(approvalId, (value, sql) => {
+    assert.equal(value, config.developmentWriteConnectionString);
+    assert.equal(sql, 'SELECT 1;\n');
+    runs++;
+    return new Promise(resolve => { finish = resolve; });
+  });
+  assert.match((await execute(approvalId)).status, /待核对/);
+  finish();
+  const success = await first;
+  assert.equal(success.status, '执行成功');
+  assert.deepEqual(await execute(approvalId), success);
+  assert.equal(runs, 1);
+  const second = await request();
+  const grantPath = '.matt/private/development-sql/' + second.approvalId + '.json';
+  const originalGrant = get(f.root, grantPath);
+  put(f.root, grantPath, { ...JSON.parse(originalGrant), file: 'unapproved.sql' });
+  await assert.rejects(execute(second.approvalId), /有效人工批准/);
+  put(f.root, grantPath, originalGrant);
+  const failed = await execute(second.approvalId, () => { throw Object.assign(new Error('secret'), { code: '42P01' }); });
+  assert.equal(failed.sqlState, '42P01');
+  assert.ok(!JSON.stringify(failed).includes('secret'));
+  assert.deepEqual(await execute(second.approvalId), failed);
+  assert.equal(runs, 1);
+});
+
+test('人工表单只接受本人显式勾选，取消、拒绝及客户端异常均不批准', async () => {
+  const review = { path: 'spec/task/delivery-sql/01.sql', target: 'dev', sha256: '123', impact: 'create', sql: 'SELECT 1;' };
+  const form = { getClientCapabilities: () => ({ elicitation: { form: {} } }) };
+  for (const [answer, expected] of [
+    [{ action: 'cancel' }, false], [{ action: 'decline' }, false], [{ action: 'accept', content: { approve: false } }, false],
+    [{ action: 'accept' }, false], [{ action: 'accept', content: { approve: true } }, true],
+  ]) {
+    form.elicitInput = async request => {
+      for (const value of Object.values(review)) assert.ok(request.message.includes(value));
+      assert.equal(request.requestedSchema.properties.approve.default, false);
+      return answer;
+    };
+    assert.equal(await confirmWithPerson(form, review), expected);
+  }
+  form.elicitInput = async () => { throw new Error('offline'); };
+  await assert.rejects(confirmWithPerson(form, review), /offline/);
 });
 
 test('依赖返修换版后，旧派单和间接下游都需重新核对；仅追加会话或回执不影响版本', () => {

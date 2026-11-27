@@ -16,6 +16,13 @@ Matt 派单与前后端直接接单共用父层 `references/claims.md`。发送�
 
 需求或实现取决于数据库结构时，已绑定数据库工具的 bot 用 `matt_db_schema` 的 `list_tables` 和 `describe_table` 核对相关表。独立 worker 在自己的会话中查找该工具；工具不可用时，把表名和待核实的字段或约束交回派发 bot。由 bot 查表后回传所需元数据。连接串只保存在项目父目录的私有配置中。
 
+### 开发库 SQL
+
+1. 需求分析时，Matt 在后端规格写清数据要求和历史数据预期。开发或已授权修复确需改库时，由 Matt 确定本单的需求目录，按交付模板建立或复用 `delivery.md`。Backend 在它同级的 `delivery-sql/` 中编写 SQL。独立 worker 将草案交回 Backend，由 Backend 写入这一个共享位置。每次追加改动另建 SQL，保留已执行版本。
+2. Backend 把需求目录名、文件名、影响的表及数据范围交给 Matt。Matt 在面向用户的主会话调用 `confirm_dev_sql(requirement, file, impact)`，由工具向本人展示实际开发库、完整 SQL 和摘要。等待期间可继续独立的开发工作。拒绝、取消或缺少确认工具时，把本次改库记为待处理。
+3. Matt 只把工具返回的批准编号私下交给本单 Backend。Backend 调用 `apply_dev_sql(approvalId)`，将开发库结果回报 Matt。所有开发库写入都经过这个工具，包括手工修复和为验证业务而改开发库的操作。bot 和 worker 不得用 shell、ORM 迁移命令、原始连接或编辑私有回执代替人工确认。请求中断可用原编号读回执，结果不明先核实，脚本或目标变更后重新申请。
+4. Matt 在实际的 `delivery.md` 用相对链接引用每份脚本，登记用途、脚本摘要、开发库执行结果和待处理项。SQL 文件与交付单随 spec 一起提交到保存规格的仓库。Quality 按业务用例验证开发结果。各需求的 SQL 供迭代结束时统一编制完整上线脚本，最终脚本由运维平台执行。
+
 实现 worker 按角色的 `worktree` 配置运行。启用时由 Orca 从本任务的 startSha 创建并绑定，使用 `--setup inherit`。分别核对最终目标、仓库身份、HEAD 与初始化结果；详见父层 `references/worktrees.md`。独立任务各有自己的任务分支。共享 checkout 时同仓的写入任务串行执行。
 
 Quality 按父层 `references/review.md` 固定提交或完整补丁；Standards 与 Spec 使用独立只读上下文，分别报告。先固定本次输入，再审查；修改后重新固定版本并复审。实现上下文不充当自己的 reviewer。

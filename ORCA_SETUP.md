@@ -81,7 +81,7 @@ node bin/matt-orca.mjs apply --workspace "$project"
 
 ## 2. 创建与登记
 
-### 可选的 PostgreSQL 表结构工具
+### PostgreSQL 查表和开发库变更
 
 首次运行 Orca 安装器的 `apply` 会在共同父目录创建 `.matt/private/database.json`。该目录由父目录的 Git 忽略规则覆盖。文件初始内容如下。
 
@@ -89,7 +89,8 @@ node bin/matt-orca.mjs apply --workspace "$project"
 {
   "version": 1,
   "connectionString": "",
-  "qualityTestConnectionString": ""
+  "qualityTestConnectionString": "",
+  "developmentWriteConnectionString": ""
 }
 ```
 
@@ -97,7 +98,13 @@ node bin/matt-orca.mjs apply --workspace "$project"
 
 运行 `node bin/matt-orca.mjs apply --workspace "$project"`。安装器按锁文件安装 MCP 依赖，给已登记的对应 bot 绑定 `matt_db_schema`；新 bot 在登记时补绑。老工作区先执行 `node bin/matt.mjs update --host orca --workspace "$project" --apply`。清空对应连接并再次运行 Orca 安装器会撤下该角色的绑定。更换密码后，下次调用自动读取新值。
 
-`doctor --json` 的 `database` 显示角色和绑定状态。使用新开的 bot 聊天调用 `list_tables(limit=1)`，再用返回的 schema 和表名调用 `describe_table`，可以验证连接及账号可见的结构。服务只执行内置的元数据查询，每次使用数据库只读事务。验证独立 worker 时，从 worker 自身调用工具；若不可见，由派发 bot 查表并交回结果。
+`doctor --json` 的 `database` 显示角色、绑定状态和开发库写入开关。新开 bot 聊天，调用 `list_tables(limit=1)`，再用返回的 schema 和表名调用 `describe_table`。这两项工具始终使用只读事务。独立 worker 缺少工具时，由派发 bot 查表并交回结果。
+
+需要 Backend 执行开发 SQL 时，在私有配置填入 `developmentWriteConnectionString` 后运行上述安装步骤，并新开 Matt 和 Backend 聊天。旧配置可继续只读使用。写连接必须指向已确认的开发库，包含明确的账号、主机和库名，可指定端口和 `sslmode`。项目确认复用已有连接时可以填入同一 URL。保持真实密码只在本机私有配置内。
+
+Backend 在开发阶段准备 `<specs>/<需求名>/delivery-sql/<文件名>.sql`。Matt 在主会话调用 `confirm_dev_sql`，优先使用 MCP 人工确认表单，Windows 客户端未提供表单时显示本机确认窗口。本人核对目标、内容及影响并明确同意后，Backend 用 `apply_dev_sql` 执行一次。拒绝或取消没有批准编号。脚本、位置或连接变化需要重新确认。回执保存在父目录私有目录内，中断可用同一编号查询结果。此确认约束工作流的 MCP 入口，本机文件和数据库账号由操作系统用户管理。
+
+Matt 保持真实的 `delivery.md` 与 `delivery-sql/` 同级，用相对链接记录脚本用途、SHA-256 和执行结果，随该需求 spec 一起提交。Quality 验证业务行为，各需求 SQL 供迭代结束时编制完整上线脚本参考，上线由运维平台执行。
 
 ### 登记团队
 

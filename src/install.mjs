@@ -10,6 +10,11 @@ import { parseWorkflow, savedProvider, validateProvider, workflowPath } from '..
 import { documentLocations, localChoice, marker } from '../templates/runtime/docs.mjs';
 
 const statePath = '.matt/manifest.json';
+// Before 1.18 the manifest recorded template names without their content hashes.
+const originalSpecSeeds = {
+  'templates/spec/backend.md': '8f16d9a9e738be724ab9ebfe046bf9b534bb95a3c2000d2b9bd3b049b47bac64',
+  'templates/spec/delivery.md': '6de476c95c8531641524663fabb8fd99fe5f6363a3a7afe70eda1e483a5b4983',
+};
 const encode = value => JSON.stringify(value, null, 2) + '\n';
 const digest = text => text === null ? null : createHash('sha256').update(text.replaceAll('\r\n', '\n')).digest('hex');
 const template = name => readFileSync(join(source, name), 'utf8').replaceAll('\r\n', '\n');
@@ -155,6 +160,10 @@ function sync(root, command, apply, keep, requestedE2e, requestedProvider, host)
   if (host === 'orca') projectSeeds['.matt/sessions.json'] = 'templates/orca/sessions.json';
   for (const [name, src] of Object.entries(projectSeeds)) {
     if (!seeded.has(name) && !existsSync(safePath(root, name))) changes.push({ name, old: null, next: src ? template(src) : encode(discover(root).config), action: 'seed' });
+    if (seeded.has(name) && Object.hasOwn(originalSpecSeeds, src)) {
+      const old = read(root, name);
+      if (digest(old) === originalSpecSeeds[src]) changes.push({ name, old, next: template(src), action: 'update' });
+    }
     seeded.add(name);
   }
   const manifest = encode({ format: 1, version, files, seeded: [...seeded] });

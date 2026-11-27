@@ -1,5 +1,11 @@
 # 验证记录 · matt-Full-stack
 
+## 1.18.0 开发库 SQL 人工确认
+
+36 项自动化测试通过。Windows 上用两个独立的 MCP 客户端连接安装后的 Matt 和 Backend 服务，在隔离的 PostgreSQL 17.11 上验证了拒绝时无变更、批准后脚本换版被拒、获批原文成功执行，以及同一编号重试后表中仍只有一条测试记录。确认表单的答复由测试客户端模拟，实际 Orca 会话中的人工点击尚未实测。
+
+已初始化的体检项目复用了经用户确认的开发库连接。安装器检查就绪，新启动的项目 MCP 服务分别向 Matt 提供确认工具、向 Backend 提供执行工具。该项目的数据库未用于写入测试。
+
 ## 1.17.0 PostgreSQL 表结构 MCP
 
 Windows 上使用 Orca 1.4.278 做了父子会话对照。Matt bot 在新聊天中调用 `matt_db_schema.list_tables` 和 `describe_table`，取得第一张可见表的 11 列元数据。Matt 通过 Orca 启动一个在后端仓工作的独立 Codex worker。该 worker 搜索自身的可调用工具和延迟加载工具后回报，两项工具均不可见。本次配置下，bot 专属 MCP 没有自动传给独立 worker。
