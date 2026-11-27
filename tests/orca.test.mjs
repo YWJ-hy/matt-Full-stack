@@ -1,4 +1,6 @@
 import test from 'node:test';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readdirSync, realpathSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,6 +11,54 @@ import { buildPlan, configPath, markerPath, roles, statePath } from '../src/orca
 import { createClient, executable } from '../src/orca/cli.mjs';
 import { digest } from '../src/orca/files.mjs';
 import { get, put, repo, run, temp } from './helpers.mjs';
+
+test('两入口竞争同一认领，部分批准与开发依赖受检，返修和占用中的原树可恢复', async () => {
+  const f = fixture();
+  put(f.root, '.matt/sessions.json', { version: 1, roles: { frontend: { worktree: true }, backend: { worktree: true } } });
+  const entry = join(f.root, '.matt/runtime/tasks.mjs');
+  const call = (...args) => JSON.parse(run(f.frontend, process.execPath, [entry, ...args]));
+  const denied = (...args) => run(f.frontend, process.execPath, [entry, ...args], 1);
+  const ui = 'frontend/reschedule/T01', api = 'backend/reschedule/T01';
+  const unapproved = 'backend/reschedule/T02';
+  assert.deepEqual(call('list'), []);
+  assert.ok(!existsSync(join(f.root, '.matt/private/tasks.json')));
+  assert.match(denied('claim', unapproved, '--at', '1', '--actor', 'matt'), /批准/);
+  call('approve', ui, '--basis', 'v1 T01 / chat 1', '--return-to', 'matt', '--integration', api);
+  call('approve', api, '--basis', 'v1 T01 / chat 1', '--return-to', 'matt', '--needs', ui);
+  assert.match(denied('claim', api, '--at', '1', '--actor', 'matt'), /开发依赖/);
+  const contenders = await Promise.allSettled(['matt', 'direct'].map(actor =>
+    promisify(execFile)(process.execPath, [entry, 'claim', ui, '--at', '1', '--actor', actor], { cwd: f.backend, windowsHide: true })));
+  assert.equal(contenders.filter(result => result.status === 'fulfilled').length, 1);
+  const [claim] = call('list', ui);
+  assert.equal(claim.status, 'claimed');
+  assert.deepEqual(claim.developmentBlockedBy, []);
+  assert.deepEqual(claim.integrationBlockedBy, [api]);
+  const followed = call('follow', ui, '--return-to', 'new-chat');
+  assert.deepEqual(followed.returns, ['matt', 'new-chat']);
+  const step = (command, task, ...args) => call(command, task.key, '--at', String(task.version), ...args);
+  const worker = ['--actor', 'frontend-session'];
+  let current = step('start', followed, ...worker, '--claim-id', claim.claimId);
+  assert.match(denied('start', ui, '--at', String(current.version), '--actor', 'other', '--claim-id', claim.claimId), /重复开工/);
+  current = step('progress', current, ...worker, '--tree', 'tree-1', '--evidence', 'stage 1 receipt');
+  const held = step('hold', current, '--evidence', 'needs rework');
+  const revised = step('approve', held, '--basis', 'v2 T01 / chat 2', '--return-to', 'matt', '--integration', api);
+  const retry = step('claim', revised, '--actor', 'matt');
+  assert.notEqual(retry.claimId, claim.claimId);
+  assert.match(denied('start', ui, '--at', String(retry.version), ...worker, '--claim-id', claim.claimId), /核对派单/);
+  current = step('start', retry, ...worker, '--claim-id', retry.claimId);
+  assert.equal(current.tree, 'tree-1');
+  assert.match(denied('progress', ui, '--at', String(current.version), ...worker, '--tree', 'tree-2', '--evidence', 'wrong tree'), /其他工作树/);
+  current = step('deliver', current, ...worker, '--evidence', 'fixed version and test receipt');
+  assert.equal(call('claim', api, '--at', '1', '--actor', 'matt').status, 'claimed');
+  const service = ['--actor', 'test-server'], cleanup = ['--actor', 'matt', '--evidence', 'merge and clean tree checked; cleanup approved'];
+  current = step('use', current, ...service);
+  assert.match(denied('cleanup', ui, '--at', String(current.version), ...cleanup), /占用/);
+  current = step('release', current, ...service);
+  current = step('cleanup', current, ...cleanup);
+  assert.match(denied('use', ui, '--at', String(current.version), ...service), /正在清理/);
+  assert.equal(step('removed', current, '--actor', 'matt', '--evidence', 'Orca receipt; branch retained').cleanup.state, 'removed');
+  assert.deepEqual(call('list', unapproved), []);
+});
 
 function fixture() {
   const root = temp('orca-project-');
@@ -50,6 +100,29 @@ function installAll(f) {
   }
   return homes;
 }
+
+test('依赖返修换版后，旧派单和间接下游都需重新核对；仅追加会话或回执不影响版本', () => {
+  const f = fixture(), entry = join(f.root, '.matt/runtime/tasks.mjs');
+  const call = (...args) => JSON.parse(run(f.root, process.execPath, [entry, ...args]));
+  const step = (command, task, ...args) => call(command, task.key, '--at', String(task.version), ...args);
+  const batch = ['--basis', 'v1 approved', '--return-to', 'matt'];
+  const actor = ['--actor', 'worker'];
+  const start = approved => {
+    const claim = step('claim', approved, ...actor);
+    return step('start', claim, ...actor, '--claim-id', claim.claimId);
+  };
+  const deliver = task => step('deliver', task, ...actor, '--evidence', 'checked handoff');
+  let first = deliver(start(call('approve', 'backend/feature/T01', ...batch)));
+  const second = deliver(start(call('approve', 'frontend/feature/T02', ...batch, '--needs', first.key)));
+  const third = step('claim', call('approve', 'frontend/feature/T03', ...batch, '--needs', second.key), ...actor);
+  first = call('follow', first.key, '--return-to', 'direct-chat');
+  assert.deepEqual(call('list', third.key)[0].developmentBlockedBy, []);
+  const held = step('hold', first, '--evidence', 'fix required');
+  assert.deepEqual(call('list', third.key)[0].developmentBlockedBy, [second.key]);
+  deliver(start(step('approve', held, ...batch)));
+  assert.match(run(f.root, process.execPath, [entry, 'start', third.key, '--at', String(third.version), ...actor, '--claim-id', third.claimId], 1), /开发依赖/);
+  assert.deepEqual(call('list', second.key)[0].developmentBlockedBy, [first.key]);
+});
 
 test('plan 只读；apply 注册项目，bot 从各自 home 登记；重复执行和 doctor 无额外操作', () => {
   const f = fixture();

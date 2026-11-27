@@ -26,7 +26,7 @@ function validModel(value) {
   return typeof value === 'string' && value.trim() === value && value.length > 0 && !/[\x00-\x1f]/.test(value);
 }
 
-function worktreeBase(role) {
+function worktreeBase(role, options) {
   const repo = load('.matt/workspace.json')[role]?.repo;
   if (typeof repo !== 'string' || !repo || /[\\/]/.test(repo) || repo === '.' || repo === '..') throw new Error(`请核对 ${role}.repo：需要共同父目录的直接子仓`);
   const checkout = realpathSync(resolve(workspace, repo));
@@ -38,16 +38,40 @@ function worktreeBase(role) {
   try { sha = git('rev-parse', '--verify', `refs/heads/${branch}^{commit}`); }
   catch { throw new Error(`${role} 分支 ${branch} 尚无提交或无法解析其提交，请先核对基线`); }
   const dirty = Boolean(git('status', '--porcelain', '--untracked-files=normal', '--ignore-submodules=none'));
-  return { checkout, branch, sha, dirty };
+  const targetBranch = options['target-branch'] ?? branch;
+  let targetSha = sha;
+  if (targetBranch !== branch) {
+    try {
+      git('check-ref-format', `refs/heads/${targetBranch}`);
+      targetSha = git('rev-parse', '--verify', '--end-of-options', `refs/heads/${targetBranch}^{commit}`);
+    } catch { throw new Error(`请核对本端合回目标分支：${targetBranch}`); }
+  }
+  const requiredShas = options['requires-sha'] ?? [];
+  const startSha = options['start-sha'] ?? requiredShas[0] ?? targetSha;
+  for (const commit of new Set([startSha, ...requiredShas])) {
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commit)) throw new Error('起点和依赖需要本仓已交付的完整提交 SHA');
+    try {
+      if (git('rev-parse', '--verify', '--end-of-options', `${commit}^{commit}`) !== commit) throw new Error();
+    } catch { throw new Error(`本仓没有可核实的提交：${commit}`); }
+  }
+  for (const dep of requiredShas) {
+    try { git('merge-base', '--is-ancestor', dep, startSha); }
+    catch { throw new Error(`起点 ${startSha} 未包含依赖 ${dep}，请提供已验证的组合提交`); }
+  }
+  return { checkout, branch, sha, dirty, startSha, targetBranch, targetSha };
 }
 
 function plan() {
-  const { positionals, values } = parseArgs({ allowPositionals: true, options: { models: { type: 'string' }, model: { type: 'string' }, host: { type: 'string' }, 'worktree-base': { type: 'boolean' } } });
+  const { positionals, values } = parseArgs({ allowPositionals: true, options: {
+    models: { type: 'string' }, model: { type: 'string' }, host: { type: 'string' }, 'worktree-base': { type: 'boolean' },
+    'target-branch': { type: 'string' }, 'start-sha': { type: 'string' }, 'requires-sha': { type: 'string', multiple: true },
+  } });
   const [selected] = positionals;
   if (positionals.length > 1 || (selected !== undefined && !roles.includes(selected))) throw new Error('用法：sessions.mjs [frontend|backend|standards|spec] [--models 映射文件] [--worktree-base]');
   if (values.host !== undefined && values.host !== 'orca') throw new Error('--host 仅支持 orca；其他宿主省略该参数');
   if (values.model !== undefined && (values.host !== 'orca' || !selected)) throw new Error('--model 仅用于 --host orca 且已指定角色的派单');
   if (values['worktree-base'] && !['frontend', 'backend'].includes(selected)) throw new Error('--worktree-base 仅用于 frontend 或 backend 实现角色');
+  if (!values['worktree-base'] && ['target-branch', 'start-sha', 'requires-sha'].some(key => values[key] !== undefined)) throw new Error('起点、依赖和目标选项需要 --worktree-base');
   const config = object(load('.matt/sessions.json'), 'sessions', ['version', 'roles']);
   if (config.version !== 1) throw new Error('需要 sessions.json version 1');
   object(config.roles, 'roles', roles);
@@ -79,7 +103,7 @@ function plan() {
     }
     if (values['worktree-base']) {
       if (!worktree) throw new Error(`${role} 未配置 worktree: true`);
-      result[role].worktreeBase = worktreeBase(role);
+      result[role].worktreeBase = worktreeBase(role, values);
     }
   }
   return selected ? result[selected] : result;

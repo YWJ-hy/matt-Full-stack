@@ -122,7 +122,7 @@ export function buildPlan({ root, client, cwd = process.cwd(), homes = botRoot()
   const pending = [], changes = [], conflicts = [], bots = [];
   const conventions = read(root, 'CLAUDE.md') ?? read(root, 'AGENTS.md') ?? '';
   if (!/^## Agent skills\s*$/m.test(conventions)) pending.push({ kind: 'conventions', detail: '父目录尚未登记 Agent skills 共享约定，请按 AI_SETUP.md 完成环境接入' });
-  for (const path of ['.matt/AI_SETUP.md', '.agents/skills/matt-full-stack/SKILL.md', ...['dispatch', 'review', 'worktrees', 'issues', 'acceptance'].map(name => `.agents/skills/matt-full-stack/references/${name}.md`)]) {
+  for (const path of ['.matt/AI_SETUP.md', '.matt/runtime/tasks.mjs', '.matt/runtime/workspace-files.mjs', '.agents/skills/matt-full-stack/SKILL.md', ...['dispatch', 'review', 'worktrees', 'issues', 'acceptance', 'tasks', 'claims'].map(name => `.agents/skills/matt-full-stack/references/${name}.md`)]) {
     if (!read(root, path)?.trim()) pending.push({ kind: 'workspace-assets', detail: `父层工作流文件缺失或为空：${path}；请用 matt update 修复` });
   }
   for (const [role, repo] of Object.entries(repos)) if (!repo.selector) pending.push({ kind: 'repo', role, detail: `apply 将注册 ${repo.checkout}` });

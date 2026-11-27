@@ -1,7 +1,7 @@
 import test from 'node:test';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
-import { cpSync, existsSync, mkdirSync, readdirSync, realpathSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { source, version } from '../src/release.mjs';
 import { skillSources } from '../src/matt-skills.mjs';
@@ -237,7 +237,7 @@ test('工作树派单只读绑定各端当前分支与提交，不猜默认分�
     put(dir, 'feature', role); snapshot(dir); put(dir, 'local-wip', 'not part of the commit');
     const trees = git('worktree', 'list', '--porcelain');
     const sha = git('rev-parse', 'HEAD'); assert.notEqual(sha, git('rev-parse', 'main'));
-    assert.deepEqual(JSON.parse(probe(role)).worktreeBase, { checkout: realpathSync(dir), branch, sha, dirty: true });
+    assert.deepEqual(JSON.parse(probe(role)).worktreeBase, { checkout: realpathSync(dir), branch, sha, dirty: true, startSha: sha, targetBranch: branch, targetSha: sha });
     assert.equal(git('worktree', 'list', '--porcelain'), trees);
     assert.equal(git('status', '--porcelain'), '?? local-wip');
     unlinkSync(join(dir, 'local-wip')); assert.equal(JSON.parse(probe(role)).worktreeBase.dirty, false);
@@ -247,6 +247,96 @@ test('工作树派单只读绑定各端当前分支与提交，不猜默认分�
   assert.match(probe('spec', 1), /仅用于/);
   settings.roles.backend.worktree = false; put(work, '.matt/sessions.json', settings);
   assert.match(probe('backend', 1), /worktree: true/);
+});
+
+test('每个任务按仓库固定起点，依赖交付独立于最终目标，连续阶段复用原树', () => {
+  const work = temp('task-bases-');
+  const ui = repo(work, 'ui', true), api = repo(work, 'api', false);
+  const git = (dir, ...args) => run(dir, 'git', args).trim();
+  for (const dir of [ui, api]) { snapshot(dir); git(dir, 'branch', '-M', 'target'); }
+  cli(work, ['init', '--apply', '--e2e', 'off']);
+  put(work, '.matt/sessions.json', { version: 1, roles: { frontend: { worktree: true }, backend: { worktree: true } } });
+  const probe = (role, args = [], status = 0) => run(work, process.execPath, ['.matt/runtime/sessions.mjs', role, '--host', 'orca', '--worktree-base', ...args], status);
+  const base = role => JSON.parse(probe(role)).worktreeBase;
+  const first = join(work, 'ui-T01'), second = join(work, 'ui-T02'), server = join(work, 'api-T01');
+  // Git's checkout hook stands in for the host setup receipt in this isolated fixture.
+  for (const dir of [ui, api]) {
+    const hooks = join(dir, '.git', 'hooks');
+    put(hooks, 'post-checkout', '#!/bin/sh\necho setup >> "$(git rev-parse --git-path setup-runs)"\n');
+    chmodSync(join(hooks, 'post-checkout'), 0o755);
+    git(dir, 'config', 'core.hooksPath', hooks);
+  }
+  git(ui, 'worktree', 'add', '-qb', 'task/T01', first, base('frontend').startSha);
+  git(api, 'worktree', 'add', '-qb', 'task/T01', server, base('backend').startSha);
+  put(first, 'contract.txt', 'v1'); snapshot(first);
+  const dependency = git(first, 'rev-parse', 'HEAD');
+  const options = ['--target-branch', 'target', '--requires-sha', dependency];
+  const dependent = JSON.parse(probe('frontend', options)).worktreeBase;
+  assert.equal(dependent.startSha, dependency);
+  assert.equal(dependent.targetSha, git(ui, 'rev-parse', 'target'));
+  assert.notEqual(dependent.targetSha, dependency);
+  assert.match(probe('frontend', [...options, '--start-sha', dependent.targetSha], 1), /未包含依赖/);
+  assert.match(probe('backend', options, 1), /没有可核实的提交/);
+  git(ui, 'worktree', 'add', '-qb', 'task/T02', second, dependent.startSha);
+  assert.equal(get(second, 'contract.txt'), 'v1');
+  put(first, 'stage-two.txt', 'same task, second stage'); snapshot(first);
+  assert.equal(existsSync(join(second, 'stage-two.txt')), false);
+  for (const dir of [first, second, server]) {
+    const receipt = git(dir, 'rev-parse', '--path-format=absolute', '--git-path', 'setup-runs');
+    assert.equal(readFileSync(receipt, 'utf8').trim(), 'setup');
+  }
+  assert.equal(git(ui, 'rev-parse', 'target'), dependent.targetSha);
+});
+
+test('隔离试合并揭示文本冲突和组合回归，落地前发现目标前移', () => {
+  const work = temp('trial-merge-');
+  const ui = repo(work, 'ui', true); repo(work, 'api', false);
+  const git = (dir, ...args) => run(dir, 'git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', '-c', 'commit.gpgsign=false', ...args]).trim();
+  put(ui, 'rules.txt', 'old\n');
+  put(ui, 'policy.mjs', 'export const allow = () => true;\n');
+  snapshot(ui); git(ui, 'branch', '-M', 'target');
+  cli(work, ['init', '--apply', '--e2e', 'off']);
+  put(work, '.matt/sessions.json', { version: 1, roles: { frontend: { worktree: true } } });
+  const target = () => JSON.parse(run(work, process.execPath, ['.matt/runtime/sessions.mjs', 'frontend', '--worktree-base', '--target-branch', 'target'])).worktreeBase.targetSha;
+  const task = join(work, 'task'), trial = join(work, 'trial');
+  git(ui, 'worktree', 'add', '-qb', 'task/batch', task, target());
+  put(task, 'rules.txt', 'batch workflow\n'); snapshot(task);
+  const conflictHead = git(task, 'rev-parse', 'HEAD');
+  put(ui, 'rules.txt', 'restricted workflow\n');
+  put(ui, 'policy.mjs', 'export const allow = role => role === "supervisor";\n');
+  snapshot(ui);
+  const checkedTarget = target();
+  const upstream = join(work, 'shared.git');
+  git(work, 'init', '--bare', upstream);
+  git(ui, 'remote', 'add', 'team', upstream);
+  git(ui, 'push', '-u', 'team', 'target:release-team');
+  git(ui, 'worktree', 'add', '--detach', trial, checkedTarget);
+  run(trial, 'git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'merge', '--no-commit', conflictHead], 1);
+  assert.equal(git(trial, 'diff', '--name-only', '--diff-filter=U'), 'rules.txt');
+  git(trial, 'merge', '--abort');
+  // An independent new entry point merges cleanly while bypassing the target's changed policy.
+  git(task, 'switch', '-qc', 'task/entry', 'HEAD^');
+  put(task, 'entry.mjs', 'export const runBatch = () => true;\n'); snapshot(task);
+  const taskHead = git(task, 'rev-parse', 'HEAD');
+  git(trial, 'merge', '--no-edit', taskHead);
+  const check = 'import {runBatch} from "./entry.mjs"; import {allow} from "./policy.mjs"; process.exit(runBatch("guest") === allow("guest") ? 0 : 1)';
+  run(trial, process.execPath, ['--input-type=module', '-e', check], 1);
+  put(trial, 'entry.mjs', 'export { allow as runBatch } from "./policy.mjs";\n'); snapshot(trial);
+  run(trial, process.execPath, ['--input-type=module', '-e', check]);
+  const verified = git(trial, 'rev-parse', 'HEAD');
+  assert.equal(target(), checkedTarget);
+  const coworker = join(work, 'coworker');
+  git(work, 'clone', '-q', '-b', 'release-team', upstream, coworker);
+  put(coworker, 'team-change.txt', 'coworker commit'); snapshot(coworker);
+  git(coworker, 'push');
+  git(ui, 'fetch', 'team');
+  assert.equal(git(ui, 'rev-parse', '--abbrev-ref', 'target@{upstream}'), 'team/release-team');
+  assert.notEqual(git(ui, 'rev-parse', 'target@{upstream}'), checkedTarget);
+  git(ui, 'merge', '--ff-only', 'target@{upstream}');
+  assert.notEqual(target(), checkedTarget);
+  git(trial, 'merge', '--no-edit', target());
+  assert.notEqual(git(trial, 'rev-parse', 'HEAD'), verified);
+  run(trial, process.execPath, ['--input-type=module', '-e', check]);
 });
 
 test('新建工作区只注册父工作流，随包 skill 及引用完整，其他工作流使用宿主入口', () => {
@@ -402,7 +492,7 @@ test('旧版升级：预览无写入，冲突整批停止，保留合并和项�
   put(work, '.matt/manifest.json', oldManifest);
   unlinkSync(join(work, '.matt/workflow.json'));
   const local = '.matt/AI_SETUP.md'; put(work, local, '本地合并的手册');
-  const assets = ['spec/full-stack.md', 'e2e/cases/environment.yaml', 'e2e/matt.config.mjs', 'e2e/login.mjs', '.matt/workspace.json', '.matt/private/model.env'];
+  const assets = ['spec/full-stack.md', 'spec/_templates/delivery.md', 'spec/_templates/tasks.md', 'e2e/cases/environment.yaml', 'e2e/matt.config.mjs', 'e2e/login.mjs', '.matt/workspace.json', '.matt/private/model.env'];
   for (const path of assets) put(work, path, `local: ${path}`);
   put(work, 'AGENTS.md', '原有\n' + get(work, 'AGENTS.md') + '尾部\n');
   const before = get(work, '.matt/manifest.json');

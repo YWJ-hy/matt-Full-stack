@@ -112,7 +112,9 @@ node .matt/runtime/sessions.mjs frontend --worktree-base
 
 Orca bot 团队另见同目录 [ORCA_SETUP.md](ORCA_SETUP.md)。派单追加 `--host orca`：本次 `--model` 优先于角色模型，未指定则用接单 bot 自身默认模型。旧 `inherit` 在该模式下也按 bot 默认处理，输出 `model: null`、`modelSource: bot-default`；不会继承主控或实现 bot。Standards 与 Spec 的接单方是 Quality。其他宿主不加此参数，保留原有模型语义。
 
-最后一条仅适用于 `worktree: true` 的实现角色：`--worktree-base` 只读输出本端当前分支、提交和 dirty 状态，不创建工作树。由宿主从该起点创建任务分支并绑定会话。需要自动准备依赖时，可在当前工具的工作树初始化钩子配置**该仓库**已有的安装脚本；未配置钩子时，在核实过的新工作树里按仓库约定初始化。无法原生创建或绑定就停在待派单。交付完成后父会话列出任务分支及其原分支，请用户决定哪些端合回。
+最后一条用于启用隔离的实现角色。`worktreeBase` 保留原 checkout、branch、sha 和 dirty，另给出实际起点 startSha、合回目标 targetBranch 和 targetSha。代码依赖用 `--requires-sha <已交付提交>`，多项可重复，指定组合起点用 `--start-sha`，另选已约定的本地目标用 `--target-branch`。由宿主创建任务树，Orca 继承仓库的 setup；连续阶段和返修在原树继续。
+
+两个入口从消费父目录运行 `node .matt/runtime/tasks.mjs list` 核对批准、认领、执行者、返回会话和工作树占用。派单命令见 `.agents/skills/matt-full-stack/references/claims.md`，试合并、复验和清理步骤见同目录 `worktrees.md`。升级时，已有 `spec/_templates/` 模板继续由项目维护；新交付在沿用模板时按指南补记批次、试合并版本及清理授权。
 
 ### 选择父会话工作流
 
