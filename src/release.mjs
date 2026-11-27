@@ -6,6 +6,7 @@ export const source = fileURLToPath(new URL('../', import.meta.url));
 export const version = JSON.parse(readFileSync(join(source, 'package.json'))).version;
 const runtimeFiles = names => Object.fromEntries(names.map(name => [`.matt/runtime/${name}`, `templates/runtime/${name}`]));
 export const managed = {
+  ...runtimeFiles(['database-mcp/server.mjs', 'database-mcp/config.mjs', 'database-mcp/package.json', 'database-mcp/package-lock.json']),
   ...runtimeFiles(['run.mjs', 'workflow.mjs', 'system-env.mjs', 'sessions.mjs', 'tasks.mjs', 'workspace-files.mjs', 'docs.mjs']),
   '.matt/AI_SETUP.md': 'AI_SETUP.md',
   '.matt/ORCA_SETUP.md': 'ORCA_SETUP.md',

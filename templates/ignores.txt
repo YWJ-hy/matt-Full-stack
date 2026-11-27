@@ -1,6 +1,7 @@
 /.matt/private/
 /.matt/reports/
 /.matt/runtime/node_modules/
+/.matt/runtime/database-mcp/node_modules/
 /.matt/install.lock
 /midscene_run/
 /e2e/midscene_run/

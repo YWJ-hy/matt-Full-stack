@@ -9,6 +9,7 @@ import { documentLocations } from '../../templates/runtime/docs.mjs';
 import { parseWorkflow, savedProvider } from '../../templates/runtime/workflow.mjs';
 import { digest, encode, json, read, soulSection } from './files.mjs';
 import { inventory } from './cli.mjs';
+import { planDatabase } from './database.mjs';
 
 export const configPath = '.matt/orca.json';
 export const statePath = '.matt/private/orca-install.json';
@@ -186,9 +187,10 @@ export function buildPlan({ root, client, cwd = process.cwd(), homes = botRoot()
     if (!saved || digest(encode(saved.files)) !== digest(encode(hashes))) pending.push({ kind: 'registration', role, detail: `${name} 需要 apply 登记当前文件版本` });
     if (bot.paused) pending.push({ kind: 'paused', role, detail: `${name} 在 Orca 中已暂停` });
   }
-  return { root, config, state, documents, e2e: e2e.enabled, e2eProvider: savedProvider(e2e) ?? null, repos, sessions, callerRole, bots, changes, conflicts, pending, bootstrap: bootstrap(root, config) };
+  const database = planDatabase(root, bots, state, client, changes, conflicts, pending);
+  return { root, config, database, state, documents, e2e: e2e.enabled, e2eProvider: savedProvider(e2e) ?? null, repos, sessions, callerRole, bots, changes, conflicts, pending, bootstrap: bootstrap(root, config) };
 }
 
 export function report(plan) {
-  return { workspaceRoot: plan.root, projectId: plan.config.projectId, documents: plan.documents, e2e: plan.e2e, e2eProvider: plan.e2eProvider, config: plan.config, repos: plan.repos, sessions: plan.sessions, callerRole: plan.callerRole, bots: plan.bots.map(({ files, ...bot }) => bot), changes: plan.changes.map(({ root, path, action, role }) => ({ path: join(root, path), action, ...(role ? { role } : {}) })), conflicts: plan.conflicts, pending: plan.pending, bootstrap: plan.bootstrap };
+  return { workspaceRoot: plan.root, projectId: plan.config.projectId, database: plan.database, documents: plan.documents, e2e: plan.e2e, e2eProvider: plan.e2eProvider, config: plan.config, repos: plan.repos, sessions: plan.sessions, callerRole: plan.callerRole, bots: plan.bots.map(({ files, ...bot }) => bot), changes: plan.changes.map(({ root, path, action, role }) => ({ path: join(root, path), action, ...(role ? { role } : {}) })), conflicts: plan.conflicts, pending: plan.pending, bootstrap: plan.bootstrap };
 }

@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { version } from '../release.mjs';
 import { encode, read, safePath, write } from './files.mjs';
 import { buildPlan, installerCommand, report, statePath, team } from './plan.mjs';
+import { installDatabaseDependencies, syncDatabaseBinding } from './database.mjs';
 
 export function apply(options) {
   // Validate destinations and all conflicts before registering projects or proposing bots.
@@ -28,14 +29,14 @@ export function apply(options) {
       if (plan.conflicts.length) return { ...report(plan), status: 'conflict', applied };
     }
     for (const change of plan.changes) {
-      write(change.root, change.path, change.next, change.old);
+      write(change.root, change.path, change.next, change.old, change.mode);
       applied.push({ action: change.action, role: change.role, path: change.path });
     }
     const state = structuredClone(plan.state);
     state.toolkitVersion = version;
     for (const bot of plan.bots) {
       if (!bot.home) continue;
-      state.bots[bot.role] = { id: bot.id, home: bot.home, files: bot.files };
+      state.bots[bot.role] = { ...state.bots[bot.role], id: bot.id, home: bot.home, files: bot.files };
       delete state.offers[bot.role];
     }
     let previousState = read(plan.root, statePath);
@@ -45,6 +46,17 @@ export function apply(options) {
       previousState = next;
     };
     save();
+    if (plan.database.installDependencies) {
+      installDatabaseDependencies(plan.root);
+      applied.push({ action: 'install-dependencies', path: '.matt/runtime/database-mcp' });
+    }
+    for (const binding of plan.database.bindings) {
+      syncDatabaseBinding(plan.root, binding, options.client);
+      if (plan.database.enabledRoles.includes(binding.role)) state.bots[binding.role].databaseTool = true;
+      else delete state.bots[binding.role].databaseTool;
+      save();
+      if (['add', 'remove'].includes(binding.action)) applied.push({ action: binding.action, name: 'matt_db_schema', role: binding.role });
+    }
     const bootstrapPath = '.matt/private/orca-bootstrap.md';
     write(plan.root, bootstrapPath, plan.bootstrap);
 

@@ -81,6 +81,26 @@ node bin/matt-orca.mjs apply --workspace "$project"
 
 ## 2. 创建与登记
 
+### 可选的 PostgreSQL 表结构工具
+
+首次运行 Orca 安装器的 `apply` 会在共同父目录创建 `.matt/private/database.json`。该目录由父目录的 Git 忽略规则覆盖。文件初始内容如下。
+
+```json
+{
+  "version": 1,
+  "connectionString": "",
+  "qualityTestConnectionString": ""
+}
+```
+
+在本机把只读账号的 PostgreSQL URL 填入 `connectionString` 即可为 Matt 和后端启用查表。格式为 `postgresql://user:password@host:5432/database`，账号和密码中的特殊字符按 URL 编码。需要 Quality 核对测试库结构时，单独填写 `qualityTestConnectionString`。前端使用公共契约。
+
+运行 `node bin/matt-orca.mjs apply --workspace "$project"`。安装器按锁文件安装 MCP 依赖，给已登记的对应 bot 绑定 `matt_db_schema`；新 bot 在登记时补绑。老工作区先执行 `node bin/matt.mjs update --host orca --workspace "$project" --apply`。清空对应连接并再次运行 Orca 安装器会撤下该角色的绑定。更换密码后，下次调用自动读取新值。
+
+`doctor --json` 的 `database` 显示角色和绑定状态。使用新开的 bot 聊天调用 `list_tables(limit=1)`，再用返回的 schema 和表名调用 `describe_table`，可以验证连接及账号可见的结构。服务只执行内置的元数据查询，每次使用数据库只读事务。验证独立 worker 时，从 worker 自身调用工具；若不可见，由派发 bot 查表并交回结果。
+
+### 登记团队
+
 1. 已有对应主控 bot 时直接进入其聊天。首次创建时，告诉用户预览输出的**准确名字**及在 Orca 中需要执行的操作。
 2. 在主控会话发送 `.matt/private/orca-bootstrap.md` 的启动说明。让它从自己的 bot home 执行说明中的绝对路径安装命令。安装器根据 `orca bot list` 的 `self` 标识登记调用者，并为另外三个缺失 bot 提出创建卡片。
 3. 接受创建卡片。每个 bot 都要在自己的会话中，从自己的 home 执行一次同一条 `apply` 命令。卡片说明包含该命令；可直接让 bot 按说明完成登记。

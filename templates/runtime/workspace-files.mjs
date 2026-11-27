@@ -40,14 +40,14 @@ export function json(root, name, fallback) {
   catch { throw new Error(`JSON 无效：${join(root, name)}`); }
 }
 
-export function write(root, name, text, expected = read(root, name)) {
+export function write(root, name, text, expected = read(root, name), mode = 0o644) {
   if (read(root, name) !== expected) throw new Error(`文件在计划后已变化，请重跑：${join(root, name)}`);
   if (expected === text) return;
   const path = safePath(root, name);
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${randomUUID()}.tmp`;
   try {
-    writeFileSync(temporary, text, { flag: 'wx', mode: lstatSync(path, { throwIfNoEntry: false })?.mode ?? 0o644 });
+    writeFileSync(temporary, text, { flag: 'wx', mode: lstatSync(path, { throwIfNoEntry: false })?.mode ?? mode });
     renameSync(temporary, path);
   } finally { if (existsSync(temporary)) unlinkSync(temporary); }
 }

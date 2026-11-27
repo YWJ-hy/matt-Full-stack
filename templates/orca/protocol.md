@@ -14,6 +14,8 @@ Matt 派单与前后端直接接单共用父层 `references/claims.md`。发送�
 
 ## 隔离与审查
 
+需求或实现取决于数据库结构时，已绑定数据库工具的 bot 用 `matt_db_schema` 的 `list_tables` 和 `describe_table` 核对相关表。独立 worker 在自己的会话中查找该工具；工具不可用时，把表名和待核实的字段或约束交回派发 bot。由 bot 查表后回传所需元数据。连接串只保存在项目父目录的私有配置中。
+
 实现 worker 按角色的 `worktree` 配置运行。启用时由 Orca 从本任务的 startSha 创建并绑定，使用 `--setup inherit`。分别核对最终目标、仓库身份、HEAD 与初始化结果；详见父层 `references/worktrees.md`。独立任务各有自己的任务分支。共享 checkout 时同仓的写入任务串行执行。
 
 Quality 按父层 `references/review.md` 固定提交或完整补丁；Standards 与 Spec 使用独立只读上下文，分别报告。先固定本次输入，再审查；修改后重新固定版本并复审。实现上下文不充当自己的 reviewer。

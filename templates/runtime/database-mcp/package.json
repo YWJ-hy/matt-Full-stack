@@ -1,0 +1,11 @@
+{
+  "name": "matt-postgres-schema",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "pg": "8.23.1",
+    "zod": "4.6.7"
+  }
+}

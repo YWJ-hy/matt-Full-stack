@@ -117,6 +117,54 @@ test('四个 bot 和 doctor 使用同一后端文档目录，规则缺失指出�
   assert.ok(!existsSync(ready.documents.specs));
 });
 
+test('可选数据库绑定随角色登记、可重试并可撤下，连接信息不进入 Orca 或报告', () => {
+  const f = fixture(), toolsByBot = new Map();
+  const runOrca = f.client.run;
+  f.client.run = args => {
+    if (args[1] !== 'tools') return runOrca(args);
+    const bot = args[args.indexOf('--bot') + 1];
+    if (args[2] === 'add') {
+      assert.ok(!toolsByBot.has(bot));
+      assert.ok(!args.join(' ').includes('secret'));
+      const tokens = Array.from(args[3].matchAll(/'([^']*)'/g), match => match[1]);
+      toolsByBot.set(bot, { name: 'matt_db_schema', detail: tokens.join(' '), remote: false });
+      return {};
+    }
+    if (args[2] === 'rm') { toolsByBot.delete(bot); return {}; }
+    return { own: toolsByBot.has(bot) ? [toolsByBot.get(bot)] : [], inherited: [] };
+  };
+  const path = '.matt/private/database.json', runtime = '.matt/runtime/database-mcp';
+  apply(f.options());
+  const config = JSON.parse(get(f.root, path));
+  assert.equal(config.connectionString, '');
+  config.connectionString = 'postgresql://fixture:secret@localhost/project';
+  put(f.root, path, config);
+  // Exercise the role lifecycle offline, using a fixture in place of the dependency probe.
+  put(f.root, runtime + '/server.mjs', '');
+  put(f.root, runtime + '/node_modules/.matt-lock', digest(get(f.root, runtime + '/package-lock.json')));
+  installAll(f);
+  assert.deepEqual([...toolsByBot.keys()].sort(), [f.config.bots.backend, f.config.bots.matt]);
+  const check = doctor(f.options());
+  assert.equal(check.status, 'ready');
+  assert.ok(!JSON.stringify(check).includes('secret'));
+  assert.ok(!get(f.root, statePath).includes('secret'));
+  assert.deepEqual(apply(f.options()).applied, []);
+  toolsByBot.set(f.config.bots.matt, { name: 'matt_db_schema', detail: 'user-configured', remote: false });
+  assert.equal(apply(f.options()).status, 'conflict');
+  toolsByBot.delete(f.config.bots.matt);
+  apply(f.options());
+  config.qualityTestConnectionString = 'postgresql://fixture:secret@localhost/test';
+  config.connectionString = '';
+  put(f.root, path, config);
+  assert.equal(apply(f.options()).status, 'ready');
+  assert.deepEqual([...toolsByBot.keys()], [f.config.bots.quality]);
+  unlinkSync(join(f.root, path));
+  apply(f.options());
+  assert.equal(toolsByBot.size, 0);
+  put(f.root, path, '{"version":1,"connectionString":"secret"}');
+  assert.throws(() => doctor(f.options()), error => !error.message.includes('secret') && error.message.includes('connectionString'));
+});
+
 test('依赖返修换版后，旧派单和间接下游都需重新核对；仅追加会话或回执不影响版本', () => {
   const f = fixture(), entry = join(f.root, '.matt/runtime/tasks.mjs');
   const call = (...args) => JSON.parse(run(f.root, process.execPath, [entry, ...args]));

@@ -21,6 +21,7 @@ try {
       console.log(`${command}: ${result.status} · ${result.projectId}`);
       console.log(`共享工程约定 ${result.documents.agentDocs}\n需求规格 ${result.documents.specs}`);
       for (const bot of result.bots) console.log(`${bot.role}: ${bot.name} · ${bot.status}${bot.home ? ` · ${bot.home}` : ''}`);
+      if (result.database.enabledRoles.length) console.log(`数据库结构 MCP · ${result.database.enabledRoles.join('、')} · ${result.database.configPath}`);
       for (const item of result.applied ?? []) console.log(`applied ${item.action} ${item.path ?? item.name}`);
       for (const item of result.changes) console.log(`${item.action} ${item.path}`);
       for (const item of result.conflicts) console.log(`CONFLICT ${item.path}`);
