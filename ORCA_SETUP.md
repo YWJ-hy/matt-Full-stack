@@ -49,6 +49,8 @@ node bin/matt.mjs $operation --host orca --workspace "$project" --apply
 
 初始化会把查找共享文档的命令写入父目录 `AGENTS.md` 的受管段。从任何 checkout 发起任务，都按这条说明从共同父目录运行 `node .matt/runtime/docs.mjs`（或调用该脚本的绝对路径），使用本次返回的 `agentDocs` 和 `specs`。具体路径在安装结果中汇报。项目自有模板可放在 `<specs>/_templates/`，没有对应模板时使用本机的 `fallbackTemplates`。第一份需求起草时才创建需求目录。
 
+使用 Orca 原生浏览器验收时，用例保存在 `<specs>/<需求名>/acceptance.md`，可以随需求规格提交。Midscene 从共同父目录的 `e2e/cases/` 读取 YAML，这个目录独立于 `.matt-docs.json` 的 `specs` 配置。如果只有前后端子仓受 Git 管理，同事克隆子仓后还需另行取得这些 YAML。
+
 ```powershell
 node bin/matt-orca.mjs plan --workspace "$project"
 node bin/matt-orca.mjs apply --workspace "$project"
