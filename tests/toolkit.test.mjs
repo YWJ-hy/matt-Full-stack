@@ -244,6 +244,20 @@ test('需求模板要求本地 spec 自包含，并记录垂直任务和真实�
   assert.match(architect, /原始材料只作为来源记录/);
 });
 
+test('安装指南和 README 提供可直接交给 AI 的升级提示词', () => {
+  const setup = get(source, 'ORCA_SETUP.md');
+  const readme = get(source, 'README.md');
+  const prompt = '请读取 https://github.com/YWJ-hy/matt-Full-stack/blob/master/ORCA_SETUP.md，';
+  for (const document of [setup, readme]) {
+    assert.match(document, /AI 直接升级入口|已有工作区升级时/);
+    assert.ok(document.includes(prompt));
+    assert.match(document, /按照“升级与恢复”章节/);
+    assert.match(document, /目标父目录是：xxx/);
+  }
+  assert.match(setup, /matt\.mjs update/);
+  assert.match(setup, /运行 Orca 的 `plan`、`apply` 和 `doctor`/);
+});
+
 test('首次非交互安装需明确选择；非法配置和丢失选择不会静默开启模型', () => {
   const work = temp('choice-'); repo(work, 'ui', true); repo(work, 'api', false);
   assert.match(cli(work, ['init', '--apply'], 1), /请选择模式/);
