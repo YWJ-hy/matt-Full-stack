@@ -25,7 +25,7 @@ export const e2eManaged = {
 };
 export const blocks = { 'AGENTS.md': 'templates/instructions.md', '.gitignore': 'templates/ignores.txt' };
 export const seeds = { '.matt/sessions.json': 'templates/sessions.json' };
-export const specTemplates = ['shared.md', 'frontend.md', 'backend.md', 'delivery.md', 'tasks.md'];
+export const specTemplates = ['shared.md', 'frontend.md', 'backend.md', 'delivery.md', 'tasks.md', 'task.md', 'api.md', 'acceptance.md'];
 export const e2eSeeds = {
   'e2e/matt.config.mjs': 'templates/matt.config.mjs',
   'e2e/login.mjs': 'templates/login.mjs',

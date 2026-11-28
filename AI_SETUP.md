@@ -1,6 +1,6 @@
 # AI 实施手册
 
-首次接入或升级在共同父目录单开环境会话。`.matt/workflow.json` 的 `e2e.enabled` 控制是否验收，`e2e.provider` 选择 `orca` 或 `midscene`。只有 Midscene 需要第 2 节的模型和隔离链路。登录、真实业务服务和业务用例留给启用 E2E 的需求会话。
+首次接入或升级在共同父目录单开环境会话。`.matt/workflow.json` 的 `e2e.enabled` 控制是否验收，`e2e.provider` 选择 `orca` 或 `midscene`。只有 Midscene 需要第 2 节的模型和隔离链路。所有新需求在评审前设计业务用例。登录和真实业务环境用于启用 E2E 的执行阶段。
 
 **体验项目：** 创建脚本已安装工具。两种模式都从第 1 节的「配置父目录的 Matt 工程约定」继续；体验项目选择 Midscene 后继续第 2 节，两端的 `selftest/` 夹具已备好。
 
@@ -112,7 +112,7 @@ node .matt/runtime/sessions.mjs frontend --worktree-base
 
 命令输出可供任意会话工具读取的 JSON。`freshContext: true` 表示新派的实现或审查角色只接收本单，不复制父会话历史；可用 subagent 或新会话，与 `worktree` 是否隔离 checkout 无关。派发者使用宿主实际提供的模型选择、工作目录、工作树及权限机制，并按派单模板回报结果。只能手动开会话的工具也可以使用同一份输出开会话并粘贴派单。模型不可用或无法满足隔离时标记待派发，由使用者选择合适的工具或调整配置。
 
-Orca bot 团队另见同目录 [ORCA_SETUP.md](ORCA_SETUP.md)。派单追加 `--host orca`：本次 `--model` 优先于角色模型，未指定则用接单 bot 自身默认模型。旧 `inherit` 在该模式下也按 bot 默认处理，输出 `model: null`、`modelSource: bot-default`；不会继承主控或实现 bot。Standards 与 Spec 的接单方是 Quality。其他宿主不加此参数，保留原有模型语义。
+Orca bot 团队另见同目录 [ORCA_SETUP.md](ORCA_SETUP.md)。派单追加 `--host orca`：本次 `--model` 优先于角色模型，默认时直接省略 worker 的 `--model`。旧 `inherit` 在该模式下也按 bot 默认处理，输出 `model: null`、`modelSource: bot-default`；不会继承主控或实现 bot。Standards 与 Spec 的接单方是 Quality。其他宿主不加此参数，保留原有模型语义。
 
 最后一条用于启用隔离的实现角色。`worktreeBase` 保留原 checkout、branch、sha 和 dirty，另给出实际起点 startSha、合回目标 targetBranch 和 targetSha。代码依赖用 `--requires-sha <已交付提交>`，多项可重复，指定组合起点用 `--start-sha`，另选已约定的本地目标用 `--target-branch`。由宿主创建任务树，Orca 继承仓库的 setup；连续阶段和返修在原树继续。
 
@@ -128,7 +128,7 @@ Orca bot 团队另见同目录 [ORCA_SETUP.md](ORCA_SETUP.md)。派单追加 `--
 - 「只审前端相对 main 的改动。」按工作区映射进前端仓解析 `main`，不在父目录或后端运行这次审查。若需求来源是工单，把完整 URL 或父目录相对路径随报告交回；没有修复或回写授权就只出报告。
 - 「只验收当前版本的领取工单场景。」启用 E2E 时核对版本、运行已有 case 并报告结果；失败也不自动派修复。仅开发项目说明当前设置，由用户决定是否切换。
 
-新功能或行为变更自动使用 `grilling` 和 `domain-modeling`，不要求另行手动启动原版 `grill-with-docs`。父会话提交 `spec/<需求名>/shared.md` 和涉及端的 `frontend.md`、`backend.md` 供用户评审，即使没有问题要问也要等待这版获批，然后分别派公共 spec 和本端 spec。自动派单无需手动启动原版 `implement`。仅开发时按场景或修复单登记版本、测试与审查结果；修复还需重跑原复现。注明「按项目配置未执行 E2E」，不编写 YAML，不执行下节的组合验收。
+新功能或行为变更自动使用 `grilling` 和 `domain-modeling`，不要求另行手动启动原版 `grill-with-docs`。Orca 架构师调查并拆包，Quality 在每包编写 acceptance.md。Matt 把共用规则、任务范围及用例一起请用户评审，按批准范围派发同版任务包。自动派单无需手动启动原版 `implement`。仅开发时按场景或修复单登记版本、测试与审查结果；修复还需重跑原复现。注明「按项目配置未执行 E2E」，不编写 YAML，不执行下节的组合验收。
 
 ### 执行验收（仅 E2E）
 

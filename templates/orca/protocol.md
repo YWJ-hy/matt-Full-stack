@@ -4,11 +4,11 @@
 
 “设计验收用例”发生在开发批准前：给 Quality 草案修订、场景 ID、父目录与用例可写范围，请它交回用例和待澄清的业务预期。下述实现单使用获批版本。
 
-Matt 派单与前后端直接接单共用父层 `references/claims.md`。发送前取得 claim；正文携带任务键、claimId、批准范围与回报会话。收件方 start 成功后才允许建树或启动写入 worker。直收者自己执行时使用同一协议；跨端证据交 Matt，原会话负责把结果送达用户。相同任务的阶段和返修按原执行会话定向续接，已有运行先核对回执。
+Matt 派单与前后端直接接单共用父层 `references/claims.md`。发送前取得 claim；正文携带任务键、claimId、批准范围与回报会话。有 worker 时由收件方先 accept，再建树并启动 worker，收到真实启动回执后 start。直收者自己执行时使用同一协议；跨端证据交 Matt，原会话负责把结果送达用户。相同任务的阶段和返修按原执行会话定向续接，已有运行先核对回执。
 
-每次只交接一张任务：项目与需求 ID、工单完整引用（如有）、批准的 spec 修订或故障预期、场景 ID、责任仓库、实际 checkout 与起始 SHA、可编辑范围、测试边界、模型解析结果、返回地址。前端只读公共与前端 spec，后端只读公共与后端 spec。交接时使用 `project.json` 的 `documents.specs` 下对应文件的绝对路径和获批修订，用 `documents.agentDocs` 下的工单与领域规则。完整指南在父目录 `.agents/skills/matt-full-stack/references/`。
+每次只交接一张任务：项目与需求 ID、工单完整引用（如有）、批准的 spec 修订或故障预期、场景 ID、责任仓库、实际 checkout 与起始 SHA、可编辑范围、测试边界、模型解析结果、返回地址。两端引用同一任务包入口、验收用例、接口及上游依赖，各自读取相关分端说明。交接时使用 `project.json` 的 `documents.specs` 下对应文件的绝对路径和获批修订，用 `documents.agentDocs` 下的工单与领域规则。完整指南在父目录 `.agents/skills/matt-full-stack/references/`。
 
-需要结果回到派发者时，按当前 `orca-cli` 指南向目标 `bot:<name>` 使用 `--type question`。首次派发用 `--chat new`，续接用 `--chat <原聊天ID>`。正文通过 `--body-file` 传入，子 bot 按消息 ID `reply`。完整所有权交接才用 `handoff`。普通消息送达不表示开工或完成。登记返回的消息 ID；运行时 ID 和进度写入父目录的私有任务记录，最终证据写入本需求 `delivery.md`。
+需要结果回到派发者时，按当前 `orca-cli` 指南向目标 `bot:<name>` 使用 `--type question`。首次派发用 `--chat new`，续接用 `--chat <原聊天ID>`。正文通过 `--body-file` 传入，子 bot 按消息 ID `reply`。完整所有权交接才用 `handoff`。普通消息送达不表示开工或完成。登记返回的消息 ID；运行时 ID 和进度写入父目录的私有任务记录，最终证据写入本任务包的 `delivery.md`。
 
 主控管理需求范围和跨端契约，各 bot 管理自己启动的 worker。加载 Orca 当前的 `orchestration` 指南后启动受监督任务，保留 Run/Task/Dispatch 标识。根据回执的 `next` 行动；等待时结束本轮，让 Orca 唤醒。发生失败或结果不明时按回执恢复，保留原请求，避免重复派单。
 
@@ -18,8 +18,8 @@ Matt 派单与前后端直接接单共用父层 `references/claims.md`。发送�
 
 ### 开发库 SQL
 
-1. 需求分析时，Matt 在后端规格写清数据要求和历史数据预期。开发或已授权修复确需改库时，由 Matt 确定本单的需求目录，按交付模板建立或复用 `delivery.md`。Backend 在它同级的 `delivery-sql/` 中编写 SQL。独立 worker 将草案交回 Backend，由 Backend 写入这一个共享位置。每次追加改动另建 SQL，保留已执行版本。
-2. Backend 把需求目录名、文件名、影响的表及数据范围交给 Matt。Matt 在面向用户的主会话调用 `confirm_dev_sql(requirement, file, impact)`，由工具向本人展示实际开发库、完整 SQL 和摘要。等待期间可继续独立的开发工作。拒绝、取消或缺少确认工具时，把本次改库记为待处理。
+1. 需求分析时，架构师在任务包写清数据要求和历史数据预期。开发或已授权修复确需改库时，由 Matt 确定本单的任务包目录，按交付模板建立或复用 `delivery.md`。Backend 在它同级的 `delivery-sql/` 中编写 SQL。独立 worker 将草案交回 Backend，由 Backend 写入这一个共享位置。每次追加改动另建 SQL，保留已执行版本。
+2. Backend 把相对 specs 的任务包路径（需求或需求/task1）、文件名、影响的表及数据范围交给 Matt。Matt 在面向用户的主会话调用 `confirm_dev_sql(requirement, file, impact)`，由工具向本人展示实际开发库、完整 SQL 和摘要。等待期间可继续独立的开发工作。拒绝、取消或缺少确认工具时，把本次改库记为待处理。
 3. Matt 只把工具返回的批准编号私下交给本单 Backend。Backend 调用 `apply_dev_sql(approvalId)`，将开发库结果回报 Matt。所有开发库写入都经过这个工具，包括手工修复和为验证业务而改开发库的操作。bot 和 worker 不得用 shell、ORM 迁移命令、原始连接或编辑私有回执代替人工确认。请求中断可用原编号读回执，结果不明先核实，脚本或目标变更后重新申请。
 4. Matt 在实际的 `delivery.md` 用相对链接引用每份脚本，登记用途、脚本摘要、开发库执行结果和待处理项。SQL 文件与交付单随 spec 一起提交到保存规格的仓库。Quality 按业务用例验证开发结果。各需求的 SQL 供迭代结束时统一编制完整上线脚本，最终脚本由运维平台执行。
 

@@ -2,8 +2,8 @@
   "version": 1,
   "roles": {
     "matt": {
-      "purpose": "协调项目需求、规格评审、前后端派单与最终交付。",
-      "skills": ["grilling", "domain-modeling", "diagnosing-bugs"]
+      "purpose": "统一接单，组织业务评审、调度和交付，按实际回执维护任务状态。",
+      "skills": ["diagnosing-bugs"]
     },
     "frontend": {
       "purpose": "负责项目的前端实现、测试与返修，按批准的公共和前端规格交付。",
@@ -12,6 +12,10 @@
     "backend": {
       "purpose": "负责项目的后端实现、接口测试与返修，按批准的公共和后端规格交付。",
       "skills": ["tdd", "codebase-design", "diagnosing-bugs"]
+    },
+    "architect": {
+      "purpose": "分析项目需求，调查前后端和旧系统，设计任务包与依赖，向 Matt 提交业务决定和变更影响。",
+      "skills": ["grilling", "domain-modeling"]
     },
     "quality": {
       "purpose": "组织独立的规范与需求审查，并按项目配置验收真实前后端版本组合。",

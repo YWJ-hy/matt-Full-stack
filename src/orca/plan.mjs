@@ -31,15 +31,22 @@ function defaults(root) {
 }
 
 function configuration(root) {
-  const config = json(root, configPath, defaults(root));
+  const old = read(root, configPath);
+  const config = old === null ? defaults(root) : JSON.parse(old.replace(/^\uFEFF/, ''));
   object(config, configPath, ['version', 'projectId', 'bots', 'repos']);
   if (config.version !== 1 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(config.projectId) || config.projectId.length > 24) throw new Error('orca.json 需要 version 1 和至多 24 字符的 projectId（小写字母、数字、连字符）');
   object(config.bots, 'bots', roles);
+  // Upgrade existing four-role projects without renaming their bound bots.
+  const needsArchitect = !Object.hasOwn(config.bots, 'architect');
+  if (needsArchitect) config.bots.architect = `${config.projectId}-architect`;
   for (const role of roles) if (typeof config.bots[role] !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(config.bots[role]) || config.bots[role].length > 40) throw new Error(`bots.${role} 需要至多 40 字符的小写名字`);
-  if (new Set(Object.values(config.bots)).size !== roles.length) throw new Error('四个 bot 必须使用不同名字');
+  if (new Set(Object.values(config.bots)).size !== roles.length) throw new Error('各角色的 bot 必须使用不同名字');
   object(config.repos, 'repos', ['frontend', 'backend']);
   for (const role of ['frontend', 'backend']) if (config.repos[role] !== null && (typeof config.repos[role] !== 'string' || !/^id:.+/.test(config.repos[role]))) throw new Error(`repos.${role} 需要 Orca id: 标识或 null（按路径发现）`);
-  return config;
+  const change = old === null || needsArchitect
+    ? { root, path: configPath, old, next: encode(config), action: old === null ? 'seed' : 'update' }
+    : null;
+  return { config, change };
 }
 
 export function validateHome(home, homes) {
@@ -111,7 +118,7 @@ function desiredFiles(root, config, role, repos, documents) {
 export function buildPlan({ root, client, cwd = process.cwd(), homes = botRoot() }) {
   root = realpathSync(root);
   if (samePath(root, source)) throw new Error('请选择已初始化的消费工作区父目录，不是工具包仓库');
-  const config = configuration(root);
+  const { config, change: configChange } = configuration(root);
   const state = loadState(root, config);
   const layout = documentLocations(root, json(root, '.matt/workspace.json'));
   if (layout.status === 'ambiguous') throw new Error('存在多份文档路径配置，请用 matt docs 核对候选，按已确认的位置选择 --owner');
@@ -135,7 +142,7 @@ export function buildPlan({ root, client, cwd = process.cwd(), homes = botRoot()
     if (!read(root, path)?.trim()) pending.push({ kind: 'workspace-assets', detail: `父层工作流文件缺失或为空：${path}；请用 matt update 修复` });
   }
   for (const [role, repo] of Object.entries(repos)) if (!repo.selector) pending.push({ kind: 'repo', role, detail: `apply 将注册 ${repo.checkout}` });
-  if (read(root, configPath) === null) changes.push({ root, path: configPath, old: null, next: encode(config), action: 'seed' });
+  if (configChange) changes.push(configChange);
   const selfBots = listing.bots.filter(bot => bot.self);
   if (selfBots.length > 1) throw new Error('Orca 返回多个调用者 bot，无法登记');
   const caller = selfBots[0];

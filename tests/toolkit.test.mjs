@@ -201,7 +201,7 @@ test('Orca 团队中的旧 enabled:true 仍运行 Midscene，配置错误不触�
 
 test('分端规格模板可在仅开发模式使用；升级保留旧规格以及项目自己的模板和评审稿', () => {
   const work = temp('split-spec-'); repo(work, 'ui', true); repo(work, 'api', false);
-  const names = ['shared.md', 'frontend.md', 'backend.md', 'delivery.md'];
+  const names = ['shared.md', 'frontend.md', 'backend.md', 'delivery.md', 'tasks.md', 'task.md', 'api.md', 'acceptance.md'];
   cli(work, ['init', '--apply', '--e2e', 'off']);
   for (const name of names) assert.equal(get(work, `spec/_templates/${name}`), get(source, `templates/spec/${name}`));
   assert.deepEqual(readdirSync(join(work, 'spec')), ['_templates']);

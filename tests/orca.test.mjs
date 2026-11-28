@@ -39,7 +39,12 @@ test('两入口竞争同一认领，部分批准与开发依赖受检，返修�
   assert.deepEqual(followed.returns, ['matt', 'new-chat']);
   const step = (command, task, ...args) => call(command, task.key, '--at', String(task.version), ...args);
   const worker = ['--actor', 'frontend-session'];
-  let current = step('start', followed, ...worker, '--claim-id', claim.claimId);
+  const sent = step('sent', followed, '--actor', claim.dispatcher, '--claim-id', claim.claimId, '--evidence', 'message sent');
+  assert.equal(sent.status, 'sent');
+  const accepted = step('accept', sent, ...worker, '--claim-id', claim.claimId);
+  assert.equal(accepted.status, 'accepted');
+  assert.match(denied('start', ui, '--at', String(accepted.version), ...worker, '--claim-id', claim.claimId), /实际启动回执/);
+  let current = step('start', accepted, ...worker, '--claim-id', claim.claimId, '--evidence', 'worker started');
   assert.match(denied('start', ui, '--at', String(current.version), '--actor', 'other', '--claim-id', claim.claimId), /重复开工/);
   current = step('progress', current, ...worker, '--tree', 'tree-1', '--evidence', 'stage 1 receipt');
   const held = step('hold', current, '--evidence', 'needs rework');
@@ -60,6 +65,10 @@ test('两入口竞争同一认领，部分批准与开发依赖受检，返修�
   assert.match(denied('use', ui, '--at', String(current.version), ...service), /正在清理/);
   assert.equal(step('removed', current, '--actor', 'matt', '--evidence', 'Orca receipt; branch retained').cleanup.state, 'removed');
   assert.deepEqual(call('list', unapproved), []);
+  const [apiTask] = call('list', api);
+  const canceled = step('cancel', apiTask, '--evidence', 'dispatch withdrawn, no worker started');
+  assert.equal(canceled.status, 'canceled');
+  assert.match(denied('hold', api, '--at', String(canceled.version), '--evidence', 'late reply'), /已取消/);
 });
 
 function fixture() {
@@ -103,7 +112,7 @@ function installAll(f) {
   return homes;
 }
 
-test('四个 bot 和 doctor 使用同一后端文档目录，规则缺失指出具体路径，规格可按需创建', () => {
+test('五个 bot 和 doctor 使用同一后端文档目录，规则缺失指出具体路径，规格可按需创建', () => {
   const f = fixture();
   put(f.backend, '.matt-docs.json', { version: 1, agentDocs: 'policy', specs: 'requirements' });
   put(f.backend, 'policy/issue-tracker.md', 'Project tracker');
@@ -173,13 +182,13 @@ test('开发库逐份审批绑定原始文件、项目位置和连接，重试�
   const config = { version: 1, developmentWriteConnectionString: 'postgres://fixture:secret@localhost/dev' };
   put(f.root, settings, config);
   put(f.frontend, '.matt-docs.json', { version: 1, agentDocs: 'rules', specs: '产品需求' });
-  const args = { requirement: '预约', file: '01-add.sql', impact: '增加预约字段' };
-  const file = '产品需求/预约/delivery-sql/01-add.sql';
+  const args = { requirement: '预约/task1', file: '01-add.sql', impact: '增加预约字段' };
+  const file = '产品需求/预约/task1/delivery-sql/01-add.sql';
   put(f.frontend, file, 'SELECT 1;\n');
   const request = (input = args, confirm = () => true) => confirmDevelopmentSql(f.root, input, confirm);
   await assert.rejects(request(), /delivery.md/);
-  put(f.frontend, '产品需求/预约/delivery.md', '# 交付');
-  for (const input of [{ ...args, file: '../other.sql' }, { ...args, file: 'dot.sql:extra.sql' }, { ...args, requirement: '_templates' }]) {
+  put(f.frontend, '产品需求/预约/task1/delivery.md', '# 交付');
+  for (const input of [{ ...args, file: '../other.sql' }, { ...args, file: 'dot.sql:extra.sql' }, { ...args, requirement: '_templates' }, { ...args, requirement: '预约/..' }, { ...args, requirement: '预约/task1/sub' }]) {
     await assert.rejects(request(input), /文件名/);
   }
   let runs = 0;
@@ -270,16 +279,24 @@ test('依赖返修换版后，旧派单和间接下游都需重新核对；仅�
 
 test('plan 只读；apply 注册项目，bot 从各自 home 登记；重复执行和 doctor 无额外操作', () => {
   const f = fixture();
+  const legacy = structuredClone(f.config);
+  delete legacy.bots.architect;
+  put(f.root, configPath, legacy);
   const before = readdirSync(join(f.root, '.matt'));
   const preview = buildPlan(f.options());
-  assert.equal(preview.bots.length, 4);
+  assert.equal(preview.bots.length, 5);
+  assert.equal(preview.config.bots.architect, f.config.bots.architect);
+  assert.deepEqual(JSON.parse(get(f.root, configPath)), legacy);
   assert.equal(preview.sessions.backend.model, null);
   assert.deepEqual(readdirSync(join(f.root, '.matt')), before);
   assert.ok(!existsSync(join(f.root, statePath)));
   assert.ok(!f.calls.some(args => args[1] === 'add' || args[1] === 'create'));
   const homes = installAll(f);
   assert.equal(f.calls.filter(args => args[1] === 'add').length, 2);
-  assert.equal(f.calls.filter(args => args[1] === 'create').length, 3);
+  assert.deepEqual(JSON.parse(get(f.root, configPath)), f.config);
+  assert.ok(existsSync(join(homes.architect, 'skills/grilling/SKILL.md')));
+  assert.ok(!existsSync(join(f.root, '.matt/private/orca-bootstrap.md')));
+  assert.equal(f.calls.filter(args => args[1] === 'create').length, 4);
   assert.equal(doctor(f.options()).status, 'ready');
   const state = JSON.parse(get(f.root, statePath));
   for (const role of roles) {
@@ -312,7 +329,7 @@ test('接受创建卡片不等于已安装；同名远程 bot 不会被绑定，
   assert.equal(result.status, 'pending');
   assert.equal(result.bots.find(bot => bot.role === 'frontend').status, 'pending');
   apply(f.options('matt', home));
-  assert.equal(f.calls.filter(args => args[1] === 'create').length, 3);
+  assert.equal(f.calls.filter(args => args[1] === 'create').length, 4);
 });
 
 test('创建回执丢失先记录 unknown，重跑不再发同一张卡片', () => {
@@ -375,6 +392,8 @@ test('Orca 模型优先级：派单 > 角色 > 接单 bot 默认，旧 inherit �
   put(f.root, '.matt/sessions.json', settings);
   put(f.root, '.matt/private/models.json', { coding: 'coding-model', review: 'review-model' });
   const invoke = args => JSON.parse(run(f.root, process.execPath, [runtime, ...args, '--host', 'orca']));
+  assert.deepEqual(invoke(['architect']).workerModelArgs, []);
+  assert.deepEqual(invoke(['architect', '--model', '@review']).workerModelArgs, ['--model', 'review-model']);
   assert.equal(invoke(['frontend']).model, 'coding-model');
   assert.equal(invoke(['frontend']).modelSource, 'role');
   assert.equal(invoke(['frontend', '--model', '@review']).model, 'review-model');

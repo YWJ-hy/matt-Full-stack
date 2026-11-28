@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { systemEnv } from './system-env.mjs';
 
-const roles = ['frontend', 'backend', 'standards', 'spec'];
+const defaultRoles = ['frontend', 'backend', 'standards', 'spec'];
+const orcaRoles = [...defaultRoles, 'architect'];
 const workspace = resolve(fileURLToPath(new URL('../../', import.meta.url)));
 
 function object(value, label, allowed) {
@@ -67,14 +68,15 @@ function plan() {
     'target-branch': { type: 'string' }, 'start-sha': { type: 'string' }, 'requires-sha': { type: 'string', multiple: true },
   } });
   const [selected] = positionals;
-  if (positionals.length > 1 || (selected !== undefined && !roles.includes(selected))) throw new Error('用法：sessions.mjs [frontend|backend|standards|spec] [--models 映射文件] [--worktree-base]');
+  const roles = values.host === 'orca' ? orcaRoles : defaultRoles;
+  if (positionals.length > 1 || (selected !== undefined && !roles.includes(selected))) throw new Error('用法：sessions.mjs [角色] [--host orca] [--models 映射文件] [--worktree-base]');
   if (values.host !== undefined && values.host !== 'orca') throw new Error('--host 仅支持 orca；其他宿主省略该参数');
   if (values.model !== undefined && (values.host !== 'orca' || !selected)) throw new Error('--model 仅用于 --host orca 且已指定角色的派单');
   if (values['worktree-base'] && !['frontend', 'backend'].includes(selected)) throw new Error('--worktree-base 仅用于 frontend 或 backend 实现角色');
   if (!values['worktree-base'] && ['target-branch', 'start-sha', 'requires-sha'].some(key => values[key] !== undefined)) throw new Error('起点、依赖和目标选项需要 --worktree-base');
   const config = object(load('.matt/sessions.json'), 'sessions', ['version', 'roles']);
   if (config.version !== 1) throw new Error('需要 sessions.json version 1');
-  object(config.roles, 'roles', roles);
+  object(config.roles, 'roles', orcaRoles);
   let aliases;
   if (values.models !== undefined) aliases = object(load(values.models), '模型映射');
   const result = {};
@@ -97,7 +99,12 @@ function plan() {
     result[role] = { role, model: resolved, worktree, workspaceRoot: workspace, repository: review ? 'implementation' : role, access: review ? 'read-only' : 'implementation', freshContext: true };
     if (values.host === 'orca') {
       const defaultModel = ['inherit', 'bot-default'].includes(resolved);
+      if (role === 'architect') {
+        result[role].repository = 'workspace';
+        result[role].access = 'specification';
+      }
       result[role].model = defaultModel ? null : resolved;
+      result[role].workerModelArgs = defaultModel ? [] : ['--model', resolved];
       result[role].modelSource = defaultModel ? 'bot-default' : values.model !== undefined ? 'dispatch' : 'role';
       result[role].botRole = review ? 'quality' : role;
     }

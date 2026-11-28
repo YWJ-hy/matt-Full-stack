@@ -15,8 +15,9 @@ function component(name) {
 }
 
 function snapshot(root, requirement, file) {
-  if (!component(requirement) || requirement.toLowerCase() === '_templates' || !component(file) || !/\.sql$/i.test(file)) {
-    throw new Error('请提供一个需求目录名和 delivery-sql 中的 SQL 文件名');
+  const parts = typeof requirement === 'string' ? requirement.split('/') : [];
+  if (!parts.length || parts.length > 2 || !parts.every(part => component(part) && part.toLowerCase() !== '_templates') || !component(file) || !/\.sql$/i.test(file)) {
+    throw new Error('请提供需求或需求/任务包目录，以及 delivery-sql 中的 SQL 文件名');
   }
   const connectionString = databaseConfig(root).developmentWriteConnectionString;
   if (!connectionString) throw new Error('本项目尚未启用开发库写连接');

@@ -75,7 +75,7 @@ const initial = databaseConfig(root);
 if (initial.developmentWriteConnectionString && role === 'matt') {
   server.registerTool('confirm_dev_sql', {
     description: '向人展示本需求的完整 SQL、目标开发库和影响，取得本次执行的批准编号。',
-    inputSchema: { requirement: z.string().min(1), file: z.string().min(1), impact: z.string().trim().min(1) },
+    inputSchema: { requirement: z.string().min(1).describe('相对 specs 的需求或需求/任务包目录'), file: z.string().min(1), impact: z.string().trim().min(1) },
   }, async (args, { signal }) => {
     const result = await confirmDevelopmentSql(root, args, review => confirmWithPerson(server.server, review, signal));
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };

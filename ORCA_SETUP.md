@@ -4,7 +4,7 @@
 
 > 按照文档 ORCA_SETUP.md 配置好环境
 
-收到这句话后，AI 按下列步骤完成本机安装。新工作区直接采用团队默认值：前端和后端各用独立 worktree，未显式指定模型时使用接单 bot 自身默认模型，E2E 关闭，执行工具预设为 Orca 原生浏览器。安装结束时汇报这些设置，无需逐项询问。有明确的项目配置或用户给出的覆盖值时沿用实际选择。
+收到这句话后，AI 按下列步骤完成本机安装。新工作区直接采用团队默认值：前端和后端各用独立 worktree，使用默认模型时派单省略 `--model`，E2E 关闭，执行工具预设为 Orca 原生浏览器。安装结束时汇报这些设置，无需逐项询问。有明确的项目配置或用户给出的覆盖值时沿用实际选择。
 
 ## 1. 准备与预览
 
@@ -56,7 +56,7 @@ node bin/matt-orca.mjs plan --workspace "$project"
 node bin/matt-orca.mjs apply --workspace "$project"
 ```
 
-`plan` 只读，不创建文件或 bot。首次 `apply` 保存项目配置、注册缺失的本机 Orca 前后端项目，并生成 `.matt/private/orca-bootstrap.md`。普通终端没有 bot 会话身份，因此这一步会报告待创建及退出码 2，属于可继续的安装状态。
+`plan` 只读，不创建文件或 bot。首次 `apply` 保存项目配置、注册缺失的本机 Orca 前后端项目，并在命令回执的 `bootstrap` 中给出登记说明。普通终端没有 bot 会话身份，因此这一步会报告待创建及退出码 2，属于可继续的安装状态。
 
 配置 `.matt/orca.json` 由项目维护，示例：
 
@@ -68,7 +68,8 @@ node bin/matt-orca.mjs apply --workspace "$project"
     "matt": "ticket-matt",
     "frontend": "ticket-frontend",
     "backend": "ticket-backend",
-    "quality": "ticket-quality"
+    "quality": "ticket-quality",
+    "architect": "ticket-architect"
   },
   "repos": {
     "frontend": null,
@@ -109,7 +110,7 @@ Matt 保持真实的 `delivery.md` 与 `delivery-sql/` 同级，用相对链接�
 ### 登记团队
 
 1. 已有对应主控 bot 时直接进入其聊天。首次创建时，告诉用户预览输出的**准确名字**及在 Orca 中需要执行的操作。
-2. 在主控会话发送 `.matt/private/orca-bootstrap.md` 的启动说明。让它从自己的 bot home 执行说明中的绝对路径安装命令。安装器根据 `orca bot list` 的 `self` 标识登记调用者，并为另外三个缺失 bot 提出创建卡片。
+2. 在主控会话发送 安装命令回执 `bootstrap` 中的启动说明。让它从自己的 bot home 执行说明中的绝对路径安装命令。安装器根据 `orca bot list` 的 `self` 标识登记调用者，并为其余缺失的团队 bot 提出创建卡片。
 3. 接受创建卡片。每个 bot 都要在自己的会话中，从自己的 home 执行一次同一条 `apply` 命令。卡片说明包含该命令；可直接让 bot 按说明完成登记。
 4. 所有 bot 登记后，从普通终端或主控会话运行 `doctor`。
 
@@ -132,7 +133,7 @@ node bin/matt-orca.mjs plan --workspace "$project" --json
 | 1 | 配置错误、文件冲突或 Orca 调用失败 |
 | 2 | `apply / doctor` 还有待创建、待登记、待同步、已暂停或共享约定缺失等事项 |
 
-当 `doctor.status` 为 `ready` 且二次预览的 `changes`、`conflicts`、`pending` 均为空，在**发起安装的会话**总结：项目父目录、前后端仓库、documents.agentDocs 与 documents.specs 的实际路径、四个 bot 的实际名称与绑定状态、前后端各自的 worktree 设置、模型来源，以及 E2E 开关和预设执行工具。从 `doctor --json` 的 `sessions`、`e2e`、`e2eProvider` 读取实际值。示例结论为「四个 bot 已就绪。前后端各用独立工作树；模型默认使用接单 bot 自身设置；E2E 已关闭，预设 Orca 原生浏览器。」有待处理项时说明具体角色和所需操作，完成后继续校验。
+当 `doctor.status` 为 `ready` 且二次预览的 `changes`、`conflicts`、`pending` 均为空，在**发起安装的会话**总结：项目父目录、前后端仓库、documents.agentDocs 与 documents.specs 的实际路径、五个 bot 的实际名称与绑定状态、前后端各自的 worktree 设置、模型来源，以及 E2E 开关和预设执行工具。从 `doctor --json` 的 `sessions`、`e2e`、`e2eProvider` 读取实际值。示例结论为「五个 bot 已就绪。前后端各用独立工作树；默认 worker 省略模型参数；E2E 已关闭，预设 Orca 原生浏览器。」有待处理项时说明具体角色和所需操作，完成后继续校验。
 
 当前安装器同步角色说明、工作流和各角色需要的随包 Matt skills。外部连接器和事件自动化属于后续接入；已有 bot 的个人记忆、连接和默认模型由 Orca 维护。
 
@@ -148,11 +149,11 @@ node .matt/runtime/sessions.mjs frontend --host orca --model '@coding'
 node .matt/runtime/sessions.mjs spec --host orca --model 'bot-default'
 ```
 
-优先级为：**本次 `--model` → `.matt/sessions.json` 对应角色的显式模型 → 接单 bot 自身默认模型**。别名仍由 `.matt/private/models.json` 或 `--models <文件>` 解析，无法解析就报错。
+优先级为：**本次 `--model` → `.matt/sessions.json` 对应角色的显式模型 → 省略 worker 模型参数**。别名仍由 `.matt/private/models.json` 或 `--models <文件>` 解析，无法解析就报错。
 
-省略 model、旧配置中的 `inherit`，以及显式 `bot-default`，在 Orca 模式均输出 `model: null`、`modelSource: "bot-default"`。前端和后端各用自己的默认模型；Standards、Spec 使用接单的 Quality bot 默认模型，不继承实现 bot 或主控。其他宿主省略 `--host orca` 后保留原来的跨工具行为。
+省略 model、旧配置中的 `inherit`，以及显式 `bot-default`，在 Orca 模式均输出 `model: null`、`modelSource: "bot-default"`。模型参数直接取解析结果的 `workerModelArgs`。Standards、Spec 均由 Quality 接单。其他宿主省略 `--host orca` 后保留原来的跨工具行为。
 
-Orca 的 bot 消息接口没有模型覆盖参数，因此显式模型随任务传给接单 bot，由它在独立执行/审查会话中使用。默认模式用该 bot 的新会话。派生 worker 时，要核实这个 bot 自身的默认模型并传给 worker：省略 `worker-start --model` 可能使用 agent 的全局默认，不能作为 bot 默认模型的证明。目前公开 bot 列表不提供默认模型字段，无法核实时由该 bot 请用户确认；安装器保留这一待解析状态，不猜测或切换模型。
+Orca 的 bot 消息接口没有模型覆盖参数，因此显式模型随任务传给接单 bot，由它在独立执行/审查会话中使用。workerModelArgs 为空时直接启动 worker，记录来源为默认。
 
 ## 5. 升级与恢复
 

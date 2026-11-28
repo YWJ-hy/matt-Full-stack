@@ -34,7 +34,7 @@ try {
     if (root === realpathSync(source)) throw new Error('请选择消费工作区的父目录');
     const e2e = await install(root, command, !!values.apply, new Set(values.keep), parseE2eOption(values.e2e), values['e2e-provider'], values.host);
     if (values.apply) {
-      if (values.host === 'orca') console.log('父目录工具已同步。按 .matt/ORCA_SETUP.md 核对项目约定、登记四个 bot，并汇报 doctor 检查结果。');
+      if (values.host === 'orca') console.log('父目录工具已同步。按 .matt/ORCA_SETUP.md 核对项目约定、登记项目团队 bot，并汇报 doctor 检查结果。');
       else console.log('工具文件已同步。请在共同父目录按 .matt/AI_SETUP.md 核对共享工程约定；已有配置直接复用，缺失时在环境会话中发送 $mattpocock-skills:setup-matt-pocock-skills。');
       if (e2e.enabled && e2e.provider === 'midscene') console.log('父目录约定就绪后，补齐模型配置并运行 Midscene setup，验证模型和隔离链路。');
       if (e2e.enabled && e2e.provider === 'orca') console.log('已选择 Orca 原生浏览器。按 .agents/skills/matt-full-stack/references/acceptance.md 准备用例并核验实际版本。');

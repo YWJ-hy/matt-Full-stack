@@ -57,8 +57,6 @@ export function apply(options) {
       save();
       if (['add', 'remove'].includes(binding.action)) applied.push({ action: binding.action, name: 'matt_db_schema', role: binding.role });
     }
-    const bootstrapPath = '.matt/private/orca-bootstrap.md';
-    write(plan.root, bootstrapPath, plan.bootstrap);
 
     if (plan.callerRole === 'matt') {
       for (const bot of plan.bots.filter(bot => bot.status === 'missing' && bot.role !== 'matt')) {

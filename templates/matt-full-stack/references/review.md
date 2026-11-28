@@ -24,7 +24,7 @@
 
 有试合并时，两轴审查都固定实际候选 SHA 和目标 SHA，另附各任务提交、已批准的范围及同事变更的预期。按目标到候选的差异核实冲突解决，测试两方原行为及组合时才出现的回归。若目标、任务或试合并内容变化，更新比较范围和受影响的测试与审查记录，再按[合回与清理](worktrees.md)确认落地。
 
-**Orca bot 团队适配。** 下述会话解析命令追加 `--host orca`。Standards、Spec 各自有显式模型时使用该模型，否则使用接单 Quality bot 自身的默认模型；不采用下文面向其他宿主的实现会话或父会话继承规则。实际 worker 的模型核实按 `matt-orca` skill 执行。
+**Orca bot 团队适配。** 下述会话解析命令追加 `--host orca`。Standards、Spec 各自有显式模型时使用该模型，否则启动审查 worker 时省略 `--model`；不采用下文面向其他宿主的实现会话或父会话继承规则。worker 的派单参数按 `matt-orca` skill 执行。
 
 从共同父目录运行 `node .matt/runtime/sessions.mjs standards` 和 `node .matt/runtime/sessions.mjs spec` 取得配置，`repository: implementation` 指本次选定的目标仓。独立审查没有实现会话时，`inherit` 继承发起审查的父会话。两轴使用独立只读上下文、并行审查、分别报告；宿主无法嵌套派审时交父会话代派，已有实现会话仍继承其模型。
 

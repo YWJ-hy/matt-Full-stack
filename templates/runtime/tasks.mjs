@@ -9,9 +9,10 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const ledger = '.matt/private/tasks.json';
 const commands = {
   list: [], approve: ['basis', 'return-to', 'needs', 'integration', 'at'],
-  claim: ['at', 'actor'], start: ['at', 'actor', 'claim-id'], receipt: ['at', 'actor', 'claim-id', 'evidence'],
+  claim: ['at', 'actor'], sent: ['at', 'actor', 'claim-id', 'evidence'],
+  accept: ['at', 'actor', 'claim-id'], start: ['at', 'actor', 'claim-id', 'evidence'], receipt: ['at', 'actor', 'claim-id', 'evidence'],
   progress: ['at', 'actor', 'evidence', 'tree'], deliver: ['at', 'actor', 'evidence'],
-  hold: ['at', 'evidence'], follow: ['return-to'], transfer: ['at', 'actor', 'evidence'],
+  cancel: ['at', 'evidence'], hold: ['at', 'evidence'], follow: ['return-to'], transfer: ['at', 'actor', 'evidence'],
   use: ['at', 'actor'], release: ['at', 'actor'],
   cleanup: ['at', 'actor', 'evidence'], removed: ['at', 'actor', 'evidence'], retain: ['at', 'actor', 'evidence'],
 };
@@ -86,7 +87,7 @@ function manageTree(task, command, options) {
     if (command === 'use' && !task.users.includes(actor)) task.users.push(actor);
     if (command === 'release') task.users = task.users.filter(user => user !== actor);
   } else if (command === 'cleanup') {
-    if (task.status !== 'delivered' || !task.tree || task.users?.length) throw new Error('尚无可清理的交付，或工作树仍被占用');
+    if (!['delivered', 'canceled'].includes(task.status) || !task.tree || task.users?.length) throw new Error('尚无可清理的交付，或工作树仍被占用');
     required(options.evidence, '合入、干净状态、服务释放及清理授权的核对记录');
     task.cleanup = { state: 'pending', actor: required(actor, '清理会话') };
   } else if (command === 'removed' || command === 'retain') {
@@ -101,7 +102,7 @@ function dispatch(tasks, task, command, options) {
   const actor = options.actor;
   required(actor, '执行或派发会话 --actor');
   const missing = blockers(tasks, task.needs, task.inputs);
-  if (command !== 'receipt' && missing.length) throw new Error('开发依赖未交付或已换版：' + missing.join(', '));
+  if (!['receipt', 'sent'].includes(command) && missing.length) throw new Error('开发依赖未交付或已换版：' + missing.join(', '));
   switch (command) {
     case 'claim': {
       if (task.status !== 'approved') throw new Error('任务已认领或暂停，请核对已有派单');
@@ -111,21 +112,26 @@ function dispatch(tasks, task, command, options) {
       task.status = 'claimed';
       break;
     }
+    case 'sent':
     case 'receipt': {
       if (actor !== task.dispatcher || options['claim-id'] !== task.claimId) throw new Error('请核对本次派单及派发会话');
       required(options.evidence, '回执或结果不明的依据');
+      if (command === 'sent' && task.status === 'claimed') task.status = 'sent';
       break;
     }
+    case 'accept':
     case 'start': {
-      if (task.status !== 'claimed' || options['claim-id'] !== task.claimId || (task.owner && task.owner !== actor)) throw new Error('请核对派单，续接原执行会话，勿重复开工');
+      const allowed = command === 'start' ? ['claimed', 'sent', 'accepted'] : ['claimed', 'sent'];
+      if (!allowed.includes(task.status) || options['claim-id'] !== task.claimId || (task.owner && task.owner !== actor)) throw new Error('请核对派单，续接原执行会话，勿重复开工');
+      if (command === 'start' && task.status === 'accepted') required(options.evidence, 'worker 实际启动回执');
       const role = task.key.split('/', 1)[0];
       const isolated = task.isolated ?? (json(root, '.matt/sessions.json').roles[role]?.worktree === true);
-      if (!isolated && tasks.some(other => other !== task && other.key.startsWith(role + '/') && other.isolated === false && other.owner && other.status !== 'delivered')) {
+      if (!isolated && tasks.some(other => other !== task && other.key.startsWith(role + '/') && other.isolated === false && other.owner && !['delivered', 'canceled'].includes(other.status))) {
         throw new Error('共享 checkout 仍有写入任务，请等待交接');
       }
       task.isolated = isolated;
       task.owner = actor;
-      task.status = 'working';
+      task.status = command === 'accept' ? 'accepted' : 'working';
       break;
     }
     case 'progress':
@@ -153,6 +159,7 @@ function transition(tasks, command, key, options) {
   const actor = options.actor;
   if (task && command !== 'follow' && String(task.version) !== options.at) throw new Error('任务已登记或版本已变化，请 list 核对负责人和回执');
   if (!task && command !== 'approve') throw new Error('缺少此任务的批准或明确修复授权记录');
+  if (task?.status === 'canceled' && !['follow', 'receipt', 'release', 'cleanup', 'retain', 'removed'].includes(command)) throw new Error('任务已取消');
   if (task?.cleanup && !['follow', 'receipt', 'removed', 'retain'].includes(command)) throw new Error('工作树正在清理或已移除，请先核对现场');
   if (command === 'approve') {
     task = approve(tasks, task, key, options);
@@ -162,6 +169,9 @@ function transition(tasks, command, key, options) {
     task.returns.push(origin);
   } else if (['use', 'release', 'cleanup', 'removed', 'retain'].includes(command)) {
     manageTree(task, command, options);
+  } else if (command === 'cancel') {
+    required(options.evidence, '执行者已退出或从未启动及待处理操作的核对结果');
+    task.status = 'canceled';
   } else if (command === 'hold') {
     required(options.evidence, '暂停或返修依据');
     task.status = 'held';

@@ -10,10 +10,13 @@ import { parseWorkflow, savedProvider, validateProvider, workflowPath } from '..
 import { documentLocations, localChoice, marker } from '../templates/runtime/docs.mjs';
 
 const statePath = '.matt/manifest.json';
-// Before 1.18 the manifest recorded template names without their content hashes.
+// Earlier manifests recorded seed paths only. Upgrade known stock copies, preserving project edits.
 const originalSpecSeeds = {
-  'templates/spec/backend.md': '8f16d9a9e738be724ab9ebfe046bf9b534bb95a3c2000d2b9bd3b049b47bac64',
-  'templates/spec/delivery.md': '6de476c95c8531641524663fabb8fd99fe5f6363a3a7afe70eda1e483a5b4983',
+  'templates/spec/backend.md': ['8f16d9a9e738be724ab9ebfe046bf9b534bb95a3c2000d2b9bd3b049b47bac64', '560baba294b889f1e292b3fe172c9f2f9e6e7effef00660370e4391f8de61527'],
+  'templates/spec/delivery.md': ['6de476c95c8531641524663fabb8fd99fe5f6363a3a7afe70eda1e483a5b4983', '32d46fdad25d5d25f08dc74a999268c6cc273a567874469c833bfc28390f106c'],
+  'templates/spec/frontend.md': ['6a6f9ba7e659cfe69410f3bdf25740dc5edb48098b9c6695853291931190cc47'],
+  'templates/spec/shared.md': ['b3fa19e0a822d38057f2316576a5a89fcb69e3b572186e8e9c49fc352a739924'],
+  'templates/spec/tasks.md': ['a6aca9289b24bc3e1c67effcf1b741ceb0052b22f680da7c51e2147eba6437f7'],
 };
 const encode = value => JSON.stringify(value, null, 2) + '\n';
 const digest = text => text === null ? null : createHash('sha256').update(text.replaceAll('\r\n', '\n')).digest('hex');
@@ -162,7 +165,7 @@ function sync(root, command, apply, keep, requestedE2e, requestedProvider, host)
     if (!seeded.has(name) && !existsSync(safePath(root, name))) changes.push({ name, old: null, next: src ? template(src) : encode(discover(root).config), action: 'seed' });
     if (seeded.has(name) && Object.hasOwn(originalSpecSeeds, src)) {
       const old = read(root, name);
-      if (digest(old) === originalSpecSeeds[src]) changes.push({ name, old, next: template(src), action: 'update' });
+      if (originalSpecSeeds[src].includes(digest(old))) changes.push({ name, old, next: template(src), action: 'update' });
     }
     seeded.add(name);
   }

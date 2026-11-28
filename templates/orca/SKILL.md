@@ -13,8 +13,4 @@ description: 在 Orca bot 团队中处理 Matt 项目的需求、分端开发、
 
 ## 模型选择
 
-派单角色使用父目录的 `node .matt/runtime/sessions.mjs <frontend|backend|standards|spec> --host orca`。任务另有模型时追加 `--model <模型或别名>`；该次设置优先于角色配置。输出 `model: null`、`modelSource: bot-default` 表示使用**接单 bot 自身的默认模型**。旧配置 `inherit` 在 Orca 中按此解释。
-
-Standards 和 Spec 的接单 bot 都是 Quality。主控与其他 bot 的模型不参与默认值选择。本协议的模型规则替代通用 Matt 指南和随包 skill 中的模型继承约定。
-
-Bot 间消息没有模型切换参数：显式模型随任务交给接单 bot，由它启动指定模型的独立执行或审查会话。默认模式先使用该 bot 的新会话；需要 worker 时，核实接单 bot 自身的默认模型并显式传给 worker。`worker-start` 省略 `--model` 只能保证使用 agent 的默认值，不能证明等于 bot 的默认模型。公开接口无法核实该值时，报告待派并请用户在该 bot 中确认，不借用主控模型、不静默改用全局默认。记录实际模型和来源。
+架构调查、前后端实现和 Quality 两轴审查从父目录运行 `node .matt/runtime/sessions.mjs <architect|frontend|backend|standards|spec> --host orca`。若任务指定模型，追加 `--model <模型或别名>`。接单方在 worker-start 参数中展开返回的 `workerModelArgs`。具体模型对应 `--model <模型>`。结果为 `model: null`、`modelSource: bot-default` 时，直接省略 `--model` 启动 worker，登记来源为默认。旧配置 `inherit` 在 Orca 中也这样处理。架构师默认在自己的 bot 会话分析，调查 worker 同样遵守默认省略、显式传入的规则。
