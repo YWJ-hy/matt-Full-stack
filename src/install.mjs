@@ -15,8 +15,16 @@ const originalSpecSeeds = {
   'templates/spec/backend.md': ['8f16d9a9e738be724ab9ebfe046bf9b534bb95a3c2000d2b9bd3b049b47bac64', '560baba294b889f1e292b3fe172c9f2f9e6e7effef00660370e4391f8de61527'],
   'templates/spec/delivery.md': ['6de476c95c8531641524663fabb8fd99fe5f6363a3a7afe70eda1e483a5b4983', '32d46fdad25d5d25f08dc74a999268c6cc273a567874469c833bfc28390f106c'],
   'templates/spec/frontend.md': ['6a6f9ba7e659cfe69410f3bdf25740dc5edb48098b9c6695853291931190cc47'],
-  'templates/spec/shared.md': ['b3fa19e0a822d38057f2316576a5a89fcb69e3b572186e8e9c49fc352a739924'],
-  'templates/spec/tasks.md': ['a6aca9289b24bc3e1c67effcf1b741ceb0052b22f680da7c51e2147eba6437f7'],
+  'templates/spec/shared.md': [
+    'b3fa19e0a822d38057f2316576a5a89fcb69e3b572186e8e9c49fc352a739924',
+    '8b5b4358d9f417034ba28b3b016de5d5bceb8f4110db67489dfec9d3f0924b22',
+  ],
+  'templates/spec/tasks.md': [
+    'a6aca9289b24bc3e1c67effcf1b741ceb0052b22f680da7c51e2147eba6437f7',
+    '2c2df95d6dacaa8c0232209c47a02a31a9a959503fdcdef7d86a19398f556ae4',
+  ],
+  'templates/spec/task.md': ['bcd9f75941efbf67af1b53c7b96ee5ae99af2d86c5a4c2010919fc822925b67a'],
+  'templates/spec/acceptance.md': ['e9df33d747e9682bd2868133a2314ae94de055d6d9dc5a259c865ba5211fa705'],
 };
 const encode = value => JSON.stringify(value, null, 2) + '\n';
 const digest = text => text === null ? null : createHash('sha256').update(text.replaceAll('\r\n', '\n')).digest('hex');

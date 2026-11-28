@@ -222,6 +222,28 @@ test('分端规格模板可在仅开发模式使用；升级保留旧规格以�
   assert.match(cli(work, ['update']), /changes=0/);
 });
 
+test('需求模板要求本地 spec 自包含，并记录垂直任务和真实依赖', () => {
+  const shared = get(source, 'templates/spec/shared.md');
+  const task = get(source, 'templates/spec/task.md');
+  const tasks = get(source, 'templates/spec/tasks.md');
+  const acceptance = get(source, 'templates/spec/acceptance.md');
+  const workflow = get(source, 'templates/matt-full-stack/references/tasks.md');
+  const architect = get(source, 'templates/orca/roles/architect.md');
+
+  assert.match(shared, /用户场景/);
+  assert.match(shared, /需求来源/);
+  assert.match(shared, /范围外/);
+  assert.match(shared, /完整写在本需求目录内/);
+  assert.match(task, /独立交付边界/);
+  assert.match(task, /外部需求包只作为来源记录/);
+  assert.match(tasks, /垂直业务结果/);
+  assert.match(tasks, /阻塞任务与依赖产物/);
+  assert.match(tasks, /仓库内相对链接/);
+  assert.match(acceptance, /只依据当前需求目录内/);
+  assert.match(workflow, /任务包自包含检查/);
+  assert.match(architect, /原始材料只作为来源记录/);
+});
+
 test('首次非交互安装需明确选择；非法配置和丢失选择不会静默开启模型', () => {
   const work = temp('choice-'); repo(work, 'ui', true); repo(work, 'api', false);
   assert.match(cli(work, ['init', '--apply'], 1), /请选择模式/);
